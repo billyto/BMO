@@ -1,0 +1,22 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+xcuserdata/
+*.xcworkspace
+*.xcodeproj
+
+# macOS
+.DS_Store
+
+# Build artifacts
+*.app
+*.dSYM
+
+# API Keys (security)
+*.env
+.env
+
+# Logs
+*.log
