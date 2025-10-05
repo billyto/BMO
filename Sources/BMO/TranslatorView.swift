@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 struct TranslatorView: View {
     @StateObject private var viewModel: TranslatorViewModel
@@ -16,8 +17,10 @@ struct TranslatorView: View {
                 Spacer()
                 Button(action: viewModel.swapLanguages) {
                     Image(systemName: "arrow.left.arrow.right")
+                        .foregroundColor(.blue)
+                        .font(.title3)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .help("Swap languages")
             }
             .padding(.bottom, 4)
@@ -40,9 +43,20 @@ struct TranslatorView: View {
 
             // Input field
             VStack(alignment: .leading, spacing: 4) {
-                Text("Text to translate:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text("Text to translate:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    if viewModel.sourceLanguage == .danish && !viewModel.inputText.isEmpty {
+                        Button(action: viewModel.speakInputDanish) {
+                            Image(systemName: viewModel.isSpeakingInput ? "speaker.wave.3.fill" : "speaker.wave.2")
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Speak input in Danish")
+                    }
+                }
                 TextEditor(text: $viewModel.inputText)
                     .font(.body)
                     .frame(height: 80)
@@ -87,9 +101,18 @@ struct TranslatorView: View {
                         .background(Color.red.opacity(0.1))
                         .cornerRadius(4)
                 } else if !viewModel.translatedText.isEmpty {
-                    Text("Translation:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Text("Translation:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button(action: viewModel.speakDanish) {
+                            Image(systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2")
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Speak Danish translation")
+                    }
                     ScrollView {
                         Text(viewModel.translatedText)
                             .font(.body)
@@ -113,7 +136,7 @@ struct TranslatorView: View {
             Spacer()
         }
         .padding()
-        .frame(width: 400, height: 300)
+        .frame(width: 420, height: 380)
     }
 }
 
@@ -125,11 +148,53 @@ class TranslatorViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var sourceLanguage: Language = .danish
     @Published var targetLanguage: Language = .english
+    @Published var isSpeaking: Bool = false
+    @Published var isSpeakingInput: Bool = false
 
     private let translationService: TranslationService
+    private let speechSynthesizer = AVSpeechSynthesizer()
+    private var speechDelegate: SpeechDelegate?
 
     init(translationService: TranslationService) {
         self.translationService = translationService
+        speechDelegate = SpeechDelegate(viewModel: self)
+        speechSynthesizer.delegate = speechDelegate
+    }
+
+    func speakDanish() {
+        guard !translatedText.isEmpty else { return }
+
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+            isSpeaking = false
+            isSpeakingInput = false
+            return
+        }
+
+        let utterance = AVSpeechUtterance(string: translatedText)
+        utterance.voice = AVSpeechSynthesisVoice(language: "da-DK")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+
+        isSpeaking = true
+        speechSynthesizer.speak(utterance)
+    }
+
+    func speakInputDanish() {
+        guard !inputText.isEmpty else { return }
+
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+            isSpeaking = false
+            isSpeakingInput = false
+            return
+        }
+
+        let utterance = AVSpeechUtterance(string: inputText)
+        utterance.voice = AVSpeechSynthesisVoice(language: "da-DK")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+
+        isSpeakingInput = true
+        speechSynthesizer.speak(utterance)
     }
 
     func swapLanguages() {
@@ -180,6 +245,25 @@ class TranslatorViewModel: ObservableObject {
             return "Translation quota exceeded. Please try again later."
         case .invalidResponse:
             return "Invalid response from translation service."
+        }
+    }
+
+    fileprivate func speechDidFinish() {
+        isSpeaking = false
+        isSpeakingInput = false
+    }
+}
+
+final class SpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
+    weak var viewModel: TranslatorViewModel?
+
+    init(viewModel: TranslatorViewModel) {
+        self.viewModel = viewModel
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            viewModel?.speechDidFinish()
         }
     }
 }

@@ -25,14 +25,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "helmet", accessibilityDescription: "BMO Translator")
+            button.image = NSImage(systemSymbolName: "service.dog", accessibilityDescription: "BMO Translator")
             button.action = #selector(togglePopover)
             button.target = self
         }
 
         // Create popover
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 400, height: 300)
+        popover.contentSize = NSSize(width: 420, height: 380)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: TranslatorView(translationService: translationService)
