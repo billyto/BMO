@@ -15,6 +15,16 @@ struct TranslatorView: View {
                 Text("BMO Translator")
                     .font(.headline)
                 Spacer()
+                Button(action: viewModel.clear) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                        .font(.title3)
+                }
+                .buttonStyle(.borderless)
+                .help("Clear all (⌘K)")
+                .keyboardShortcut("k", modifiers: .command)
+                .disabled(viewModel.inputText.isEmpty && viewModel.translatedText.isEmpty)
+
                 Button(action: viewModel.swapLanguages) {
                     Image(systemName: "arrow.left.arrow.right")
                         .foregroundColor(.blue)
@@ -207,6 +217,19 @@ class TranslatorViewModel: ObservableObject {
             let tempText = inputText
             inputText = translatedText
             translatedText = tempText
+        }
+    }
+
+    func clear() {
+        inputText = ""
+        translatedText = ""
+        errorMessage = nil
+
+        // Stop any ongoing speech
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+            isSpeaking = false
+            isSpeakingInput = false
         }
     }
 
