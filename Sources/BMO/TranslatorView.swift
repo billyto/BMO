@@ -11,43 +11,35 @@ struct TranslatorView: View {
     var body: some View {
         VStack(spacing: 16) {
             // Title
-            HStack {
-                Text("BMO Translator")
-                    .font(.headline)
-                Spacer()
-                Button(action: viewModel.clear) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
-                        .font(.title3)
-                }
-                .buttonStyle(.borderless)
-                .help("Clear all (⌘K)")
-                .keyboardShortcut("k", modifiers: .command)
-                .disabled(viewModel.inputText.isEmpty && viewModel.translatedText.isEmpty)
-
-                Button(action: viewModel.swapLanguages) {
-                    Image(systemName: "arrow.left.arrow.right")
-                        .foregroundColor(.blue)
-                        .font(.title3)
-                }
-                .buttonStyle(.borderless)
-                .help("Swap languages")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Sig")
+                    .font(.title)
+                    .bold()
+                Text("Min danske hjælper")
+                    .font(.body)
+                    .foregroundColor(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 4)
+            .padding(.top, 30)
 
             // Language direction indicator
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(viewModel.sourceLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .baselineOffset(1)
-                Text(viewModel.targetLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            Button(action: viewModel.swapLanguages) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(viewModel.sourceLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 10))
+                        .foregroundColor(.blue)
+                        .baselineOffset(1)
+                    Text(viewModel.targetLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
+            .buttonStyle(.borderless)
+            .help("Swap languages")
             .frame(maxWidth: .infinity)
             .offset(y: 20)
 
@@ -67,11 +59,28 @@ struct TranslatorView: View {
                         .help("Speak input in Danish")
                     }
                 }
-                TextEditor(text: $viewModel.inputText)
-                    .font(.body)
-                    .frame(height: 80)
-                    .border(Color.gray.opacity(0.3), width: 1)
-                    .cornerRadius(4)
+                ZStack(alignment: .bottomTrailing) {
+                    TextEditor(text: $viewModel.inputText)
+                        .font(.body)
+                        .frame(height: 80)
+
+                    if !viewModel.inputText.isEmpty {
+                        Button(action: viewModel.clear) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.gray)
+                                .font(.body)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Clear all (⌘K)")
+                        .keyboardShortcut("k", modifiers: .command)
+                        .padding(6)
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
+                        .clipShape(Circle())
+                        .offset(x: -30)
+                    }
+                }
+                .border(Color.gray.opacity(0.3), width: 1)
+                .cornerRadius(4)
             }
 
             // Translate button
@@ -141,9 +150,23 @@ struct TranslatorView: View {
                         .padding()
                 }
             }
-            .frame(minHeight: 120)
+            .frame(minHeight: 100)
 
-            Spacer()
+            // Shutdown button
+            HStack {
+                Spacer()
+                Button(action: {
+                    NSApplication.shared.terminate(nil)
+                }) {
+                    Image(systemName: "power")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Quit BMO")
+            }
+            .padding(.top, 4)
+            .offset(y: -30)
         }
         .padding()
         .frame(width: 420, height: 380)
