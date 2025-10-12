@@ -58,6 +58,9 @@ cd BMO
 # Build the app bundle
 ./build-app.sh
 
+# Setup environment for GUI apps (IMPORTANT!)
+./setup-env.sh
+
 # Install to Applications folder
 cp -r Sig.app /Applications/
 
@@ -69,6 +72,13 @@ Now you can:
 - Launch Sig from Spotlight (⌘+Space, type "Sig")
 - Add to your Dock
 - Set to launch at login (System Settings → General → Login Items)
+
+**Important:** After each system restart, run:
+```bash
+cd ~/Developer/bmo/BMO && ./setup-env.sh
+```
+
+This ensures GUI apps can access your API key.
 
 ### Option 2: Build from Source
 
