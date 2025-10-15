@@ -124,6 +124,50 @@ BMO/
 └── Package.swift
 ```
 
+### Running in Xcode
+
+To develop in Xcode:
+
+1. Open the project:
+   ```bash
+   open Package.swift
+   ```
+
+2. Configure the environment variable:
+   - Click on the scheme selector (next to Run/Stop buttons)
+   - Select "Edit Scheme..."
+   - Select "Run" in the left sidebar
+   - Go to the "Arguments" tab
+   - Under "Environment Variables", add:
+     - Name: `DEEPL_API_KEY`
+     - Value: `your-api-key-here`
+
+3. Run the project (⌘+R)
+
+**Note:** You may see a warning "Cannot index window tabs due to missing main bundle identifier" - this is harmless and can be ignored. It appears because SPM executables don't have bundle identifiers like full app bundles do.
+
+### Real-Time UI Development with Xcode Previews
+
+For instant UI feedback while editing SwiftUI views:
+
+1. Open `TranslatorView.swift` in Xcode (located in `Sources/BMOLib/`)
+2. Enable the Canvas:
+   - Press **⌥⌘↩** (Option-Command-Return), or
+   - Click **Editor → Canvas** in the menu
+3. The preview will show your UI and **update automatically** as you type
+4. You can interact with the preview to test different states
+
+The preview uses a mock translation service, so you don't need an API key to see UI changes in real-time. This is perfect for:
+- Adjusting layouts and spacing
+- Tweaking colors and fonts
+- Testing different UI states
+- Experimenting with animations
+
+**Tips:**
+- If the preview stops updating, click "Resume" or press **⌥⌘P** (Option-Command-P)
+- The SwiftUI views are in the `BMOLib` target (a library), which fully supports previews
+- Previews work out of the box - no additional configuration needed!
+
 ### Running Tests
 
 ```bash

@@ -9,7 +9,7 @@ struct TranslatorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 10) {
             // Title
             VStack(alignment: .leading, spacing: 2) {
                 Text("Sig")
@@ -41,14 +41,11 @@ struct TranslatorView: View {
             .buttonStyle(.borderless)
             .help("Swap languages")
             .frame(maxWidth: .infinity)
-            .offset(y: 20)
+            .offset(y: 5)
 
             // Input field
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Text to translate:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                     Spacer()
                     if viewModel.sourceLanguage == .danish && !viewModel.inputText.isEmpty {
                         Button(action: viewModel.speakInputDanish) {
@@ -59,24 +56,50 @@ struct TranslatorView: View {
                         .help("Speak input in Danish")
                     }
                 }
-                ZStack(alignment: .bottomTrailing) {
+                .frame(height: 0)
+                .offset(y: -10)
+
+                ZStack(alignment: .topLeading) {
+                    // Placeholder text
+                    if viewModel.inputText.isEmpty {
+                        Text("Text to translate")
+                            .font(.body)
+                            .foregroundColor(.secondary.opacity(0.5))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 8)
+                    }
+
+                    // Text editor
                     TextEditor(text: $viewModel.inputText)
                         .font(.body)
-                        .frame(height: 80)
+                        .frame(height: 50)
+                        .scrollDisabled(true)
+                        .opacity(viewModel.inputText.isEmpty ? 0.5 : 1)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 8)
+                        .tint(Color(NSColor.darkGray))
 
+                    // Clear button (bottom-trailing)
                     if !viewModel.inputText.isEmpty {
-                        Button(action: viewModel.clear) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.gray)
-                                .font(.body)
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Button(action: viewModel.clear) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.body)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Clear all (⌘K)")
+                                .keyboardShortcut("k", modifiers: .command)
+                                .padding(6)
+                                .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
+                                .clipShape(Circle())
+//                                .padding(.trailing, 0)
+//                                .padding(.bottom, 0)
+                            }
                         }
-                        .buttonStyle(.borderless)
-                        .help("Clear all (⌘K)")
-                        .keyboardShortcut("k", modifiers: .command)
-                        .padding(6)
-                        .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
-                        .clipShape(Circle())
-                        .offset(x: -30)
                     }
                 }
                 .border(Color.gray.opacity(0.3), width: 1)
@@ -143,7 +166,7 @@ struct TranslatorView: View {
                     }
                     .frame(maxHeight: 100)
                 } else {
-                    Text("Enter text above and click Translate")
+                    Text("...")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -166,10 +189,10 @@ struct TranslatorView: View {
                 .help("Quit BMO")
             }
             .padding(.top, 4)
-            .offset(y: -30)
+            .offset(x:2 , y: -28)
         }
         .padding()
-        .frame(width: 420, height: 380)
+        .frame(width: 380, height: 340)
     }
 }
 
@@ -311,5 +334,38 @@ final class SpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @unchecked Se
         Task { @MainActor in
             viewModel?.speechDidFinish()
         }
+    }
+}
+
+// MARK: - Preview Support
+
+#Preview("Default State") {
+    TranslatorView(translationService: try! TranslationService(apiKey: "preview-key", networkClient: MockNetworkClient()))
+}
+
+#Preview("With Input Text") {
+    let service = try! TranslationService(apiKey: "preview-key", networkClient: MockNetworkClient())
+    return TranslatorView(translationService: service)
+}
+
+// Mock NetworkClient for previews
+final class MockNetworkClient: NetworkClient {
+    func performRequest(url: URL, body: [String: String], headers: [String: String]) async throws -> DeepLResponse {
+        // Simulate network delay for realistic preview
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+
+        // Extract text from body to create mock translation
+        let sourceText = body["text"] ?? "Hello"
+        let targetLang = body["target_lang"] ?? "EN"
+
+        let mockText = targetLang == "DA"
+            ? "Dansk oversættelse af: \(sourceText)"
+            : "English translation of: \(sourceText)"
+
+        return DeepLResponse(
+            translations: [
+                Translation(text: mockText, detectedSourceLanguage: "DA")
+            ]
+        )
     }
 }
