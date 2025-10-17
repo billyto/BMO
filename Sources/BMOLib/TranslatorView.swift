@@ -27,14 +27,14 @@ struct TranslatorView: View {
             Button(action: viewModel.swapLanguages) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(viewModel.sourceLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundColor(.blue)
                         .baselineOffset(1)
                     Text(viewModel.targetLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
             }
@@ -74,6 +74,7 @@ struct TranslatorView: View {
                         .font(.body)
                         .frame(height: 50)
                         .scrollDisabled(true)
+                        .scrollContentBackground(.hidden)
                         .opacity(viewModel.inputText.isEmpty ? 0.5 : 1)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 8)
@@ -100,8 +101,11 @@ struct TranslatorView: View {
                         }
                     }
                 }
-                .border(Color.gray.opacity(0.3), width: 1)
-                .cornerRadius(4)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                )
             }
 
             // Translate button
@@ -159,8 +163,6 @@ struct TranslatorView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                             .padding(8)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(4)
                     }
                     .frame(maxHeight: 100)
                 } else {

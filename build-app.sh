@@ -26,6 +26,12 @@ cp .build/release/BMO "$APP_DIR/Contents/MacOS/Sig"
 echo "📋 Copying Info.plist..."
 cp Info.plist "$APP_DIR/Contents/Info.plist"
 
+# Copy app icon if it exists
+if [ -f "AppIcon.icns" ]; then
+    echo "🎨 Copying app icon..."
+    cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+fi
+
 # Make the binary executable
 chmod +x "$APP_DIR/Contents/MacOS/Sig"
 

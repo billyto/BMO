@@ -5,7 +5,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 ![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.3-green)
+![Version](https://img.shields.io/badge/version-1.4-green)
 
 ## Features
 
@@ -198,7 +198,7 @@ MIT License - see LICENSE file for details
 
 - Powered by [DeepL API](https://www.deepl.com/pro-api)
 - Built with SwiftUI and Swift Package Manager
-- Viking helmet icon from SF Symbols
+- Icon: [Viking](https://thenounproject.com/browse/icons/term/viking/) by Cahya Kurniawan from Noun Project (CC BY 3.0)
 
 ## Contributing
 
