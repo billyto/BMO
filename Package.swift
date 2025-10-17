@@ -17,6 +17,9 @@ let package = Package(
         .target(
             name: "BMOLib",
             dependencies: [],
+            resources: [
+                .process("Resources")
+            ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI")
