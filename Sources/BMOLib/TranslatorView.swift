@@ -87,15 +87,13 @@ struct TranslatorView: View {
                                 Spacer()
                                 Button(action: viewModel.clear) {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(.gray.opacity(0.7))
                                         .font(.body)
                                 }
                                 .buttonStyle(.borderless)
                                 .help("Clear all (⌘K)")
                                 .keyboardShortcut("k", modifiers: .command)
-                                .padding(6)
-                                .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
-                                .clipShape(Circle())
+                                .padding(10)
 //                                .padding(.trailing, 0)
 //                                .padding(.bottom, 0)
                             }
