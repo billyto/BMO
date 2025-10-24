@@ -57,14 +57,15 @@ class IPAService {
                 return nil
             }
 
-            // Parse the response
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-               let firstEntry = json.first,
-               let phonetics = firstEntry["phonetics"] as? [[String: Any]] {
+            // Decode using Codable for type safety
+            let decoder = JSONDecoder()
+            let entries = try decoder.decode([DictionaryAPIResponse].self, from: data)
 
-                // Try to find IPA text
+            // Find first non-empty IPA text
+            if let firstEntry = entries.first,
+               let phonetics = firstEntry.phonetics {
                 for phonetic in phonetics {
-                    if let text = phonetic["text"] as? String, !text.isEmpty {
+                    if let text = phonetic.text, !text.isEmpty {
                         return text
                     }
                 }
