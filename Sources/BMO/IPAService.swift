@@ -61,16 +61,7 @@ class IPAService {
             let entries = try decoder.decode([DictionaryAPIResponse].self, from: data)
 
             // Find first non-empty IPA text
-            if let firstEntry = entries.first,
-               let phonetics = firstEntry.phonetics {
-                for phonetic in phonetics {
-                    if let text = phonetic.text, !text.isEmpty {
-                        return text
-                    }
-                }
-            }
-
-            return nil
+            return entries.first?.phonetics?.first(where: { $0.text?.isEmpty == false })?.text
         } catch {
             // Silently fail - IPA is optional enhancement
             return nil
