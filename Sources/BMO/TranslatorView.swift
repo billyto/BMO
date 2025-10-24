@@ -4,8 +4,11 @@ import AVFoundation
 struct TranslatorView: View {
     @StateObject private var viewModel: TranslatorViewModel
 
-    init(translationService: TranslationService) {
-        _viewModel = StateObject(wrappedValue: TranslatorViewModel(translationService: translationService))
+    init(translationService: TranslationService, ipaService: IPAService) {
+        _viewModel = StateObject(wrappedValue: TranslatorViewModel(
+            translationService: translationService,
+            ipaService: ipaService
+        ))
     }
 
     var body: some View {
@@ -114,13 +117,29 @@ struct TranslatorView: View {
                         .help("Speak Danish translation")
                     }
                     ScrollView {
-                        Text(viewModel.translatedText)
-                            .font(.body)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                            .padding(8)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(4)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(viewModel.translatedText)
+                                .font(.body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+
+                            if let ipa = viewModel.ipaPronunciation {
+                                HStack(spacing: 4) {
+                                    Text("IPA:")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Text(ipa)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.blue)
+                                        .textSelection(.enabled)
+                                }
+                                .padding(.top, 2)
+                            }
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(4)
                     }
                     .frame(maxHeight: 100)
                 } else {
@@ -144,6 +163,7 @@ struct TranslatorView: View {
 class TranslatorViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var translatedText: String = ""
+    @Published var ipaPronunciation: String?
     @Published var errorMessage: String?
     @Published var isLoading: Bool = false
     @Published var sourceLanguage: Language = .danish
@@ -152,11 +172,13 @@ class TranslatorViewModel: ObservableObject {
     @Published var isSpeakingInput: Bool = false
 
     private let translationService: TranslationService
+    private let ipaService: IPAService
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: SpeechDelegate?
 
-    init(translationService: TranslationService) {
+    init(translationService: TranslationService, ipaService: IPAService) {
         self.translationService = translationService
+        self.ipaService = ipaService
         speechDelegate = SpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
     }
@@ -202,6 +224,9 @@ class TranslatorViewModel: ObservableObject {
         sourceLanguage = targetLanguage
         targetLanguage = temp
 
+        // Clear IPA pronunciation when swapping
+        ipaPronunciation = nil
+
         // Optionally swap the text too
         if !translatedText.isEmpty {
             let tempText = inputText
@@ -216,6 +241,7 @@ class TranslatorViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         translatedText = ""
+        ipaPronunciation = nil
 
         do {
             let result = try await translationService.translate(
@@ -224,6 +250,11 @@ class TranslatorViewModel: ObservableObject {
                 to: targetLanguage
             )
             translatedText = result
+
+            // Fetch IPA pronunciation for the translated text
+            if let ipa = try? await ipaService.fetchIPA(for: result, language: targetLanguage) {
+                ipaPronunciation = ipa
+            }
         } catch let error as TranslationError {
             errorMessage = errorMessage(for: error)
         } catch {
