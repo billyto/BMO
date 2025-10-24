@@ -2,11 +2,9 @@ import Foundation
 
 /// Service for fetching IPA (International Phonetic Alphabet) pronunciations
 class IPAService {
-    private let networkClient: NetworkClient
     private var cache: [String: String] = [:]
 
-    init(networkClient: NetworkClient) {
-        self.networkClient = networkClient
+    init() {
     }
 
     /// Fetches IPA pronunciation for a given word and language

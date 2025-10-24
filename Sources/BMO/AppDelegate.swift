@@ -17,7 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let networkClient = URLSessionNetworkClient()
             translationService = try TranslationService(apiKey: apiKey, networkClient: networkClient)
-            ipaService = IPAService(networkClient: networkClient)
+            ipaService = IPAService()
         } catch {
             showAPIKeyAlert()
             return
