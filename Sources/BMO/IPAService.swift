@@ -46,7 +46,6 @@ class IPAService {
         }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
