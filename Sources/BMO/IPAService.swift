@@ -39,7 +39,12 @@ class IPAService {
     }
 
     private func fetchEnglishIPA(word: String) async throws -> String? {
-        let urlString = "https://api.dictionaryapi.dev/api/v2/entries/en/\(word.lowercased())"
+        // Properly encode the word for URL safety
+        guard let encodedWord = word.lowercased().addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            return nil
+        }
+
+        let urlString = "https://api.dictionaryapi.dev/api/v2/entries/en/\(encodedWord)"
 
         guard let url = URL(string: urlString) else {
             return nil
