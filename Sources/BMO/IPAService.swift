@@ -4,9 +4,6 @@ import Foundation
 class IPAService {
     private var cache: [String: String] = [:]
 
-    init() {
-    }
-
     /// Fetches IPA pronunciation for a given word and language
     /// - Parameters:
     ///   - text: The text to get pronunciation for
