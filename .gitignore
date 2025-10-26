@@ -13,6 +13,9 @@ xcuserdata/
 # Build artifacts
 *.app
 *.dSYM
+*.dmg
+dmg_temp/
+dmg_staging/
 
 # API Keys (security)
 *.env

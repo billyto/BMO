@@ -12,44 +12,43 @@ struct TranslatorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 10) {
             // Title
-            HStack {
-                Text("BMO Translator")
-                    .font(.headline)
-                Spacer()
-                Button(action: viewModel.swapLanguages) {
-                    Image(systemName: "arrow.left.arrow.right")
-                        .foregroundColor(.blue)
-                        .font(.title3)
-                }
-                .buttonStyle(.borderless)
-                .help("Swap languages")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Sig")
+                    .font(.title)
+                    .bold()
+                Text("Min danske hjælper")
+                    .font(.body)
+                    .foregroundColor(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 4)
+            .padding(.top, 30)
 
             // Language direction indicator
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(viewModel.sourceLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .baselineOffset(1)
-                Text(viewModel.targetLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            Button(action: viewModel.swapLanguages) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(viewModel.sourceLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(.blue)
+                        .baselineOffset(1)
+                    Text(viewModel.targetLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
             }
+            .buttonStyle(.borderless)
+            .help("Swap languages")
             .frame(maxWidth: .infinity)
-            .offset(y: 20)
+            .offset(y: 5)
 
             // Input field
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Text to translate:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                     Spacer()
                     if viewModel.sourceLanguage == .danish && !viewModel.inputText.isEmpty {
                         Button(action: viewModel.speakInputDanish) {
@@ -60,11 +59,72 @@ struct TranslatorView: View {
                         .help("Speak input in Danish")
                     }
                 }
-                TextEditor(text: $viewModel.inputText)
-                    .font(.body)
-                    .frame(height: 80)
-                    .border(Color.gray.opacity(0.3), width: 1)
-                    .cornerRadius(4)
+                .frame(height: 0)
+                .offset(y: -10)
+
+                ZStack(alignment: .topLeading) {
+                    // Placeholder text
+                    if viewModel.inputText.isEmpty {
+                        Text("Text to translate")
+                            .font(.body)
+                            .foregroundColor(.secondary.opacity(0.5))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 8)
+                    }
+
+                    // Text editor
+                    TextEditor(text: $viewModel.inputText)
+                        .font(.body)
+                        .frame(height: 50)
+                        .scrollDisabled(true)
+                        .scrollContentBackground(.hidden)
+                        .opacity(viewModel.inputText.isEmpty ? 0.5 : 1)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 8)
+                        .tint(Color(NSColor.darkGray))
+
+                    // Clear button (bottom-trailing)
+                    if !viewModel.inputText.isEmpty {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Button(action: viewModel.clear) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.gray.opacity(0.7))
+                                        .font(.body)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Clear all (⌘K)")
+                                .keyboardShortcut("k", modifiers: .command)
+                                .padding(10)
+//                                .padding(.trailing, 0)
+//                                .padding(.bottom, 0)
+                            }
+                        }
+                    }
+                }
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                )
+            }
+
+            // Input IPA pronunciation display
+            if let inputIpa = viewModel.inputIpaPronunciation {
+                HStack(spacing: 4) {
+                    Text("IPA:")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(inputIpa)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.blue)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
             }
 
             // Translate button
@@ -137,25 +197,36 @@ struct TranslatorView: View {
                             }
                         }
                         .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(4)
                     }
                     .frame(maxHeight: 100)
                 } else {
-                    Text("Enter text above and click Translate")
+                    Text("...")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding()
                 }
             }
-            .frame(minHeight: 120)
+            .frame(minHeight: 100)
 
-            Spacer()
+            // Shutdown button
+            HStack {
+                Spacer()
+                Button(action: {
+                    NSApplication.shared.terminate(nil)
+                }) {
+                    Image(systemName: "power")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Quit BMO")
+            }
+            .padding(.top, 4)
+            .offset(x:2 , y: -28)
         }
         .padding()
-        .frame(width: 420, height: 380)
+        .frame(width: 380, height: 340)
     }
 }
 
@@ -164,6 +235,7 @@ class TranslatorViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var translatedText: String = ""
     @Published var ipaPronunciation: String?
+    @Published var inputIpaPronunciation: String?
     @Published var errorMessage: String?
     @Published var isLoading: Bool = false
     @Published var sourceLanguage: Language = .danish
@@ -224,14 +296,30 @@ class TranslatorViewModel: ObservableObject {
         sourceLanguage = targetLanguage
         targetLanguage = temp
 
-        // Clear IPA pronunciation when swapping
+        // Clear IPA pronunciations when swapping
         ipaPronunciation = nil
+        inputIpaPronunciation = nil
 
         // Optionally swap the text too
         if !translatedText.isEmpty {
             let tempText = inputText
             inputText = translatedText
             translatedText = tempText
+        }
+    }
+
+    func clear() {
+        inputText = ""
+        translatedText = ""
+        ipaPronunciation = nil
+        inputIpaPronunciation = nil
+        errorMessage = nil
+
+        // Stop any ongoing speech
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+            isSpeaking = false
+            isSpeakingInput = false
         }
     }
 
@@ -242,6 +330,11 @@ class TranslatorViewModel: ObservableObject {
         errorMessage = nil
         translatedText = ""
         ipaPronunciation = nil
+
+        // Fetch IPA for input text (source language)
+        if let inputIpa = try? await ipaService.fetchIPA(for: inputText, language: sourceLanguage) {
+            inputIpaPronunciation = inputIpa
+        }
 
         do {
             let result = try await translationService.translate(
@@ -296,5 +389,42 @@ final class SpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @unchecked Se
         Task { @MainActor in
             viewModel?.speechDidFinish()
         }
+    }
+}
+
+// MARK: - Preview Support
+
+#Preview("Default State") {
+    TranslatorView(
+        translationService: try! TranslationService(apiKey: "preview-key", networkClient: MockNetworkClient()),
+        ipaService: IPAService()
+    )
+}
+
+#Preview("With Input Text") {
+    let service = try! TranslationService(apiKey: "preview-key", networkClient: MockNetworkClient())
+    let ipaService = IPAService()
+    TranslatorView(translationService: service, ipaService: ipaService)
+}
+
+// Mock NetworkClient for previews
+final class MockNetworkClient: NetworkClient {
+    func performRequest(url: URL, body: [String: String], headers: [String: String]) async throws -> DeepLResponse {
+        // Simulate network delay for realistic preview
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+
+        // Extract text from body to create mock translation
+        let sourceText = body["text"] ?? "Hello"
+        let targetLang = body["target_lang"] ?? "EN"
+
+        let mockText = targetLang == "DA"
+            ? "Dansk oversættelse af: \(sourceText)"
+            : "English translation of: \(sourceText)"
+
+        return DeepLResponse(
+            translations: [
+                Translation(text: mockText, detectedSourceLanguage: "DA")
+            ]
+        )
     }
 }

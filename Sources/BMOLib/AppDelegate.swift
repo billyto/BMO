@@ -1,13 +1,17 @@
 import AppKit
 import SwiftUI
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+public class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var translationService: TranslationService!
     private var ipaService: IPAService!
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    public override init() {
+        super.init()
+    }
+
+    public func applicationDidFinishLaunching(_ notification: Notification) {
         // Initialize translation service
         guard let apiKey = ProcessInfo.processInfo.environment["DEEPL_API_KEY"], !apiKey.isEmpty else {
             showAPIKeyAlert()
@@ -27,7 +31,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "service.dog", accessibilityDescription: "BMO Translator")
+            // Try to load custom icon first, fallback to SF Symbol
+            if let customIcon = loadMenuBarIcon() {
+                button.image = customIcon
+            } else {
+                button.image = NSImage(systemSymbolName: "service.dog", accessibilityDescription: "BMO Translator")
+            }
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -55,6 +64,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
+    }
+
+    private func loadMenuBarIcon() -> NSImage? {
+        // Try to load from Resources folder
+        if let iconURL = Bundle.module.url(forResource: "menubar-icon", withExtension: "pdf") ??
+                         Bundle.module.url(forResource: "menubar-icon", withExtension: "png") {
+            if let image = NSImage(contentsOf: iconURL) {
+                image.isTemplate = true  // Critical: makes it adapt to light/dark mode
+                image.size = NSSize(width: 18, height: 18)  // Standard menu bar icon size
+                return image
+            }
+        }
+        return nil
     }
 
     @MainActor

@@ -1,6 +1,7 @@
 import Foundation
 
 /// Service for fetching IPA (International Phonetic Alphabet) pronunciations
+@MainActor
 class IPAService {
     private var cache: [String: String] = [:]
 
