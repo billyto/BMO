@@ -7,7 +7,7 @@ class IPAService {
     /// Fetches IPA pronunciation for a given word and language
     /// - Parameters:
     ///   - text: The text to get pronunciation for
-    ///   - language: The language of the text (danish or english)
+    ///   - language: The language of the text (Danish or English)
     /// - Returns: IPA pronunciation string, or nil if not available
     func fetchIPA(for text: String, language: Language) async throws -> String? {
         // Clean the text - only get IPA for single words or first word of phrase
