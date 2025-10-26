@@ -5,6 +5,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var translationService: TranslationService!
+    private var ipaService: IPAService!
 
     public override init() {
         super.init()
@@ -20,6 +21,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let networkClient = URLSessionNetworkClient()
             translationService = try TranslationService(apiKey: apiKey, networkClient: networkClient)
+            ipaService = IPAService()
         } catch {
             showAPIKeyAlert()
             return
@@ -44,7 +46,10 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentSize = NSSize(width: 420, height: 380)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
-            rootView: TranslatorView(translationService: translationService)
+            rootView: TranslatorView(
+                translationService: translationService,
+                ipaService: ipaService
+            )
         )
     }
 
