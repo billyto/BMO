@@ -111,6 +111,22 @@ struct TranslatorView: View {
                 )
             }
 
+            // Input IPA pronunciation display
+            if let inputIpa = viewModel.inputIpaPronunciation {
+                HStack(spacing: 4) {
+                    Text("IPA:")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(inputIpa)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.blue)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+            }
+
             // Translate button
             Button(action: {
                 Task {
@@ -219,6 +235,7 @@ class TranslatorViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var translatedText: String = ""
     @Published var ipaPronunciation: String?
+    @Published var inputIpaPronunciation: String?
     @Published var errorMessage: String?
     @Published var isLoading: Bool = false
     @Published var sourceLanguage: Language = .danish
@@ -279,8 +296,9 @@ class TranslatorViewModel: ObservableObject {
         sourceLanguage = targetLanguage
         targetLanguage = temp
 
-        // Clear IPA pronunciation when swapping
+        // Clear IPA pronunciations when swapping
         ipaPronunciation = nil
+        inputIpaPronunciation = nil
 
         // Optionally swap the text too
         if !translatedText.isEmpty {
@@ -293,6 +311,8 @@ class TranslatorViewModel: ObservableObject {
     func clear() {
         inputText = ""
         translatedText = ""
+        ipaPronunciation = nil
+        inputIpaPronunciation = nil
         errorMessage = nil
 
         // Stop any ongoing speech
@@ -310,6 +330,11 @@ class TranslatorViewModel: ObservableObject {
         errorMessage = nil
         translatedText = ""
         ipaPronunciation = nil
+
+        // Fetch IPA for input text (source language)
+        if let inputIpa = try? await ipaService.fetchIPA(for: inputText, language: sourceLanguage) {
+            inputIpaPronunciation = inputIpa
+        }
 
         do {
             let result = try await translationService.translate(
