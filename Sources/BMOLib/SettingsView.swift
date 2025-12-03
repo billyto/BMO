@@ -130,7 +130,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(20)
-        .frame(width: 400, height: 450)
+        .frame(width: 400, height: 500)
     }
 }
 
