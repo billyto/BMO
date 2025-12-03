@@ -125,14 +125,19 @@ The app now includes a macOS Service that lets you translate text from anywhere:
 - Handles text up to 5000 characters
 - Shows error notifications if translation fails
 
-**Enabling the Service:**
+**Enabling the Service (REQUIRED):**
 
-After installation, the service should appear automatically in the Services menu. If it doesn't:
+⚠️ **Important:** macOS services are disabled by default. You MUST enable the service manually:
 
 1. Open **System Settings** → **Keyboard** → **Keyboard Shortcuts** → **Services**
-2. Scroll to find **"Translate with BMO"** under the Text section
-3. Ensure it's **checked/enabled**
-4. You may need to **restart the app** or run `/System/Library/CoreServices/pbs -flush` to refresh the services database
+2. Scroll to find **"Translate with BMO"** under the **Text** section
+3. **Check the box** to enable it
+4. The service will now appear in right-click menus
+
+If the service doesn't appear in System Settings after installation:
+- Make sure the app is in `/Applications/` folder
+- Run `/System/Library/CoreServices/pbs -flush` in Terminal to refresh the services database
+- Restart the app
 
 ## Development
 
