@@ -6,6 +6,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private var translationService: TranslationService!
     private var serviceProvider: ServiceProvider!
+    private var hotkeyMonitor: HotkeyMonitor!
 
     public override init() {
         super.init()
@@ -29,6 +30,10 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize service provider for macOS Services
         serviceProvider = ServiceProvider()
         NSApp.servicesProvider = serviceProvider
+
+        // Initialize global hotkey monitor
+        hotkeyMonitor = HotkeyMonitor(translationService: translationService)
+        hotkeyMonitor.start()
 
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

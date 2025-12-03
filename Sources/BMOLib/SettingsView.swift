@@ -22,6 +22,43 @@ struct SettingsView: View {
 
             Divider()
 
+            // Global Hotkey settings
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Global Hotkey")
+                    .font(.headline)
+
+                Toggle(isOn: $settings.hotkeyEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Enable global hotkey")
+                            .font(.body)
+                        Text("Translate selected text with a keyboard shortcut")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+
+                if settings.hotkeyEnabled {
+                    HStack {
+                        Text("Shortcut:")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Text(settings.hotkey?.displayString ?? "None")
+                            .font(.system(.body, design: .monospaced))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(6)
+                        Text("(Default: ⌘⇧T)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.leading, 20)
+                }
+            }
+
+            Divider()
+
             // Auto-dismiss settings
             VStack(alignment: .leading, spacing: 12) {
                 Text("Translation Window")
