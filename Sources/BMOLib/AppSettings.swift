@@ -84,6 +84,7 @@ class AppSettings: ObservableObject {
     private let autoDismissDurationKey = "autoDismissDuration"
     private let hotkeyEnabledKey = "hotkeyEnabled"
     private let hotkeyDataKey = "hotkeyData"
+    private let servicesEnabledKey = "servicesEnabled"
 
     // Published properties
     @Published var autoDismissEnabled: Bool {
@@ -104,6 +105,12 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var servicesEnabled: Bool {
+        didSet {
+            defaults.set(servicesEnabled, forKey: servicesEnabledKey)
+        }
+    }
+
     @Published var hotkey: Hotkey? {
         didSet {
             if let hotkey = hotkey {
@@ -121,6 +128,7 @@ class AppSettings: ObservableObject {
         self.autoDismissEnabled = defaults.object(forKey: autoDismissEnabledKey) as? Bool ?? true
         self.autoDismissDuration = defaults.object(forKey: autoDismissDurationKey) as? Double ?? 15.0
         self.hotkeyEnabled = defaults.object(forKey: hotkeyEnabledKey) as? Bool ?? true
+        self.servicesEnabled = defaults.object(forKey: servicesEnabledKey) as? Bool ?? true
 
         // Load hotkey or use default (⌘⇧T)
         if let data = defaults.data(forKey: hotkeyDataKey),

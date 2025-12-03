@@ -27,9 +27,14 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Initialize service provider for macOS Services
-        serviceProvider = ServiceProvider()
-        NSApp.servicesProvider = serviceProvider
+        // Initialize service provider for macOS Services (if enabled)
+        if AppSettings.shared.servicesEnabled {
+            serviceProvider = ServiceProvider()
+            NSApp.servicesProvider = serviceProvider
+            NSLog("macOS Services enabled")
+        } else {
+            NSLog("macOS Services disabled")
+        }
 
         // Initialize global hotkey monitor
         hotkeyMonitor = HotkeyMonitor(translationService: translationService)

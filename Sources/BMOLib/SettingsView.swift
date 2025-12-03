@@ -22,6 +22,32 @@ struct SettingsView: View {
 
             Divider()
 
+            // macOS Services settings
+            VStack(alignment: .leading, spacing: 12) {
+                Text("macOS Services")
+                    .font(.headline)
+
+                Toggle(isOn: $settings.servicesEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Enable right-click Services menu")
+                            .font(.body)
+                        Text("Show \"Translate with BMO\" in right-click context menus")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+
+                if settings.servicesEnabled {
+                    Text("Requires app restart to take effect")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.leading, 20)
+                }
+            }
+
+            Divider()
+
             // Global Hotkey settings
             VStack(alignment: .leading, spacing: 12) {
                 Text("Global Hotkey")
