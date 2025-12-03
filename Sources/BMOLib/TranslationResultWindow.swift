@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AVFoundation
 
 @MainActor
 class TranslationResultWindow: NSObject {
@@ -95,7 +96,7 @@ struct TranslationResultView: View {
     let onCopy: () -> Void
     let onClose: () -> Void
 
-    @State private var isHovering = false
+    @StateObject private var viewModel = TranslationResultViewModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -118,9 +119,20 @@ struct TranslationResultView: View {
             // Original text (if not too long)
             if original.count <= 100 {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Original:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Text("Original:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button(action: {
+                            viewModel.speak(text: original)
+                        }) {
+                            Image(systemName: viewModel.isSpeaking && viewModel.currentSpeakingText == original ? "speaker.wave.3.fill" : "speaker.wave.2")
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Speak original text")
+                    }
                     Text(original)
                         .font(.body)
                         .foregroundColor(.secondary)
@@ -130,9 +142,20 @@ struct TranslationResultView: View {
 
             // Translated text
             VStack(alignment: .leading, spacing: 4) {
-                Text("Translation:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text("Translation:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button(action: {
+                        viewModel.speak(text: translated)
+                    }) {
+                        Image(systemName: viewModel.isSpeaking && viewModel.currentSpeakingText == translated ? "speaker.wave.3.fill" : "speaker.wave.2")
+                            .foregroundColor(.blue)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Speak translation")
+                }
                 Text(translated)
                     .font(.body)
                     .foregroundColor(.primary)
@@ -162,6 +185,63 @@ struct TranslationResultView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
+    }
+}
+
+@MainActor
+class TranslationResultViewModel: ObservableObject {
+    @Published var isSpeaking: Bool = false
+    @Published var currentSpeakingText: String = ""
+
+    private let speechSynthesizer = AVSpeechSynthesizer()
+    private var speechDelegate: TranslationSpeechDelegate?
+
+    init() {
+        speechDelegate = TranslationSpeechDelegate(viewModel: self)
+        speechSynthesizer.delegate = speechDelegate
+    }
+
+    func speak(text: String) {
+        // If already speaking, stop
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+            isSpeaking = false
+            currentSpeakingText = ""
+            return
+        }
+
+        // Detect language and speak
+        let utterance = AVSpeechUtterance(string: text)
+
+        // Simple heuristic: if text contains Danish characters or common Danish words, use Danish voice
+        let danishIndicators = ["æ", "ø", "å", "jeg", "det", "er", "og", "til", "med", "på"]
+        let isDanish = danishIndicators.contains { text.lowercased().contains($0) }
+
+        utterance.voice = AVSpeechSynthesisVoice(language: isDanish ? "da-DK" : "en-US")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+
+        currentSpeakingText = text
+        isSpeaking = true
+        speechSynthesizer.speak(utterance)
+    }
+
+    fileprivate func speechDidFinish() {
+        isSpeaking = false
+        currentSpeakingText = ""
+    }
+}
+
+final class TranslationSpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
+    weak var viewModel: TranslationResultViewModel?
+
+    init(viewModel: TranslationResultViewModel) {
+        self.viewModel = viewModel
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            viewModel?.speechDidFinish()
+        }
     }
 }
 
