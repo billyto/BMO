@@ -5,7 +5,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var translationService: TranslationService!
-    private var ipaService: IPAService!
+    private var serviceProvider: ServiceProvider!
 
     public override init() {
         super.init()
@@ -21,11 +21,14 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let networkClient = URLSessionNetworkClient()
             translationService = try TranslationService(apiKey: apiKey, networkClient: networkClient)
-            ipaService = IPAService()
         } catch {
             showAPIKeyAlert()
             return
         }
+
+        // Initialize service provider for macOS Services
+        serviceProvider = ServiceProvider()
+        NSApp.servicesProvider = serviceProvider
 
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -47,8 +50,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: TranslatorView(
-                translationService: translationService,
-                ipaService: ipaService
+                translationService: translationService
             )
         )
     }
