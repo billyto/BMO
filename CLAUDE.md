@@ -133,11 +133,42 @@ Currently supports only Danish ↔ English via Language enum (Sources/BMOLib/Tra
 2. Update UI in TranslatorView
 3. Consider updating speech synthesis logic (only Danish TTS currently implemented)
 
+## macOS Services Integration (v1.5)
+
+The app now includes a system-wide translation service that appears in the macOS Services menu.
+
+**ServiceProvider** (Sources/BMOLib/ServiceProvider.swift:5)
+- Marked as @MainActor for Swift 6 concurrency safety
+- Registered via `NSApp.servicesProvider` in AppDelegate
+- Handles `translateText` method called by macOS Services infrastructure
+- Auto-detects language by trying both directions (DA→EN, then EN→DA if first fails)
+- Limits text to 5000 characters to prevent API abuse
+
+**TranslationResultWindow** (Sources/BMOLib/TranslationResultWindow.swift:5)
+- SwiftUI-based floating window for displaying translation results
+- Positioned near mouse cursor when service is invoked
+- Auto-dismisses after 10 seconds
+- Includes copy-to-clipboard functionality
+- Uses borderless window with floating level for non-intrusive display
+
+**Info.plist Configuration**
+- NSServices array declares the "Translate with BMO" service
+- NSMessage: `translateText` maps to ServiceProvider method
+- NSSendTypes: accepts `public.utf8-plain-text` and `NSStringPboardType`
+- Service appears in right-click context menus when text is selected
+
+**Service Registration**
+- macOS automatically discovers services from Info.plist in app bundles
+- Service cache can be refreshed with `/System/Library/CoreServices/pbs -flush`
+- Users can enable/disable in System Settings → Keyboard → Services
+- App must be in /Applications or ~/Applications for service to be discovered
+
 ## Swift 6 Concurrency
 
 The codebase uses strict concurrency:
 - TranslationService is Sendable
 - NetworkClient protocol is Sendable
 - ViewModel is @MainActor
+- ServiceProvider is @MainActor (required for safe service handling)
 - Async/await used throughout
 - SpeechDelegate uses @unchecked Sendable (required for AVSpeechSynthesizerDelegate)

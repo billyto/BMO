@@ -5,7 +5,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 ![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.4-green)
+![Version](https://img.shields.io/badge/version-1.5-green)
 
 ## Features
 
@@ -17,6 +17,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 - 🔄 Clickable language swap
 - 🔊 Text-to-speech for Danish pronunciation
 - 🎯 Proper macOS app bundle for easy installation
+- 🖱️ **NEW:** System-wide translation service - right-click any selected text and translate via Services menu
 
 ## Screenshots
 
@@ -96,6 +97,8 @@ swift build -c release
 
 ## Usage
 
+### Menu Bar App
+
 1. Click the viking helmet icon (🪖) in your menu bar
 2. Type or paste Danish or English text
 3. Click "Translate" or press ⌘+Return
@@ -103,6 +106,33 @@ swift build -c release
 5. Press ⌘+K to clear all text
 6. Click the speaker icon to hear Danish pronunciation
 7. Click the power icon to quit the app
+
+### System-Wide Translation Service (NEW in v1.5)
+
+The app now includes a macOS Service that lets you translate text from anywhere:
+
+1. **Select text** in any application (Safari, Chrome, TextEdit, Mail, etc.)
+2. **Right-click** on the selected text
+3. **Choose "Translate with BMO"** from the Services submenu
+4. A **floating window** will appear with the translation
+5. Click the **Copy button** to copy the translation to clipboard
+6. The window auto-dismisses after 10 seconds or when you click away
+
+**Features:**
+- Auto-detects language direction (Danish ↔ English)
+- Works system-wide in any macOS app
+- Non-intrusive floating window display
+- Handles text up to 5000 characters
+- Shows error notifications if translation fails
+
+**Enabling the Service:**
+
+After installation, the service should appear automatically in the Services menu. If it doesn't:
+
+1. Open **System Settings** → **Keyboard** → **Keyboard Shortcuts** → **Services**
+2. Scroll to find **"Translate with BMO"** under the Text section
+3. Ensure it's **checked/enabled**
+4. You may need to **restart the app** or run `/System/Library/CoreServices/pbs -flush` to refresh the services database
 
 ## Development
 
@@ -180,13 +210,16 @@ DEEPL_API_KEY=your-key ENABLE_INTEGRATION_TESTS=1 swift test
 
 ## Roadmap
 
+Completed:
+- [x] System-wide translation service (v1.5) - Right-click context menu translation
+
 Future versions may include:
 
 - [ ] Translation history
 - [ ] Favorite translations
 - [ ] Dark mode support
 - [ ] Global hotkey to show popover
-- [ ] Pronunciation guide (IPA)
+- [ ] Pronunciation guide (IPA) - Partially implemented
 - [ ] Example sentences
 - [ ] More language pairs
 
