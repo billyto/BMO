@@ -61,10 +61,13 @@ class TranslationResultWindow: NSObject {
             window?.setFrameTopLeftPoint(windowOrigin)
         }
 
-        // Setup auto-close timer (10 seconds)
-        autoCloseTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.close()
+        // Setup auto-close timer based on settings
+        let timeout = AppSettings.shared.effectiveTimeout
+        if timeout > 0 {
+            autoCloseTimer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in
+                Task { @MainActor in
+                    self?.close()
+                }
             }
         }
     }
