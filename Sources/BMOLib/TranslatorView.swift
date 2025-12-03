@@ -191,8 +191,8 @@ struct TranslatorView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Settings")
-                .popover(isPresented: $showSettings) {
-                    SettingsView(settings: settings)
+                .popover(isPresented: $showSettings, arrowEdge: .bottom) {
+                    SettingsView()
                 }
 
                 Button(action: {

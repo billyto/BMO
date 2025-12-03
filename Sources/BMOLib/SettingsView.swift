@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject var settings: AppSettings
+    @StateObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -122,9 +122,10 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 400, height: 500)
+        .fixedSize()
     }
 }
 
 #Preview {
-    SettingsView(settings: AppSettings.shared)
+    SettingsView()
 }
