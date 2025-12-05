@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var settings = AppSettings.shared
+    @ObservedObject var settings = AppSettings.shared
+    @State private var refreshID = UUID()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -28,6 +29,7 @@ struct SettingsView: View {
                     }
                 }
                 .toggleStyle(.switch)
+                .id("services-\(settings.servicesEnabled)")
 
                 if settings.servicesEnabled {
                     Text("Requires app restart to take effect")
@@ -54,6 +56,7 @@ struct SettingsView: View {
                     }
                 }
                 .toggleStyle(.switch)
+                .id("hotkey-\(settings.hotkeyEnabled)")
 
                 if settings.hotkeyEnabled {
                     HStack {
@@ -91,6 +94,7 @@ struct SettingsView: View {
                     }
                 }
                 .toggleStyle(.switch)
+                .id("autodismiss-\(settings.autoDismissEnabled)")
 
                 if settings.autoDismissEnabled {
                     VStack(alignment: .leading, spacing: 8) {
@@ -123,6 +127,11 @@ struct SettingsView: View {
         .padding(20)
         .frame(width: 400, height: 500)
         .fixedSize()
+        .id(refreshID)
+        .onAppear {
+            // Force immediate refresh to fix toggle rendering in popover
+            refreshID = UUID()
+        }
     }
 }
 

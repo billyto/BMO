@@ -13,6 +13,13 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        // Check if another instance is already running
+        if isAnotherInstanceRunning() {
+            NSLog("Another instance of BMO is already running. Terminating this instance.")
+            NSApp.terminate(nil)
+            return
+        }
+
         // Initialize translation service
         guard let apiKey = ProcessInfo.processInfo.environment["DEEPL_API_KEY"], !apiKey.isEmpty else {
             showAPIKeyAlert()
@@ -89,6 +96,28 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         return nil
+    }
+
+    private func isAnotherInstanceRunning() -> Bool {
+        let runningApps = NSWorkspace.shared.runningApplications
+
+        // For debug builds (raw executables), check by process name
+        // For release builds (app bundles), check by bundle identifier
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            // App bundle - use bundle identifier
+            let instanceCount = runningApps.filter { app in
+                app.bundleIdentifier == bundleIdentifier
+            }.count
+            return instanceCount > 1
+        } else {
+            // Raw executable - use process name
+            let processName = ProcessInfo.processInfo.processName
+            let instanceCount = runningApps.filter { app in
+                app.localizedName == processName || app.bundleURL?.lastPathComponent.contains(processName) == true
+            }.count
+            NSLog("Checking for duplicate instances by process name '\(processName)': found \(instanceCount)")
+            return instanceCount > 1
+        }
     }
 
     @MainActor

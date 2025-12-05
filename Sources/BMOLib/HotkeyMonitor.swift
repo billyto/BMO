@@ -3,26 +3,41 @@ import AppKit
 import Carbon
 
 @MainActor
-class HotkeyMonitor: ObservableObject {
+class HotkeyMonitor: NSObject, ObservableObject {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var translationService: TranslationService?
 
     init(translationService: TranslationService) {
         self.translationService = translationService
+        super.init()
     }
 
     func start() {
         guard AppSettings.shared.hotkeyEnabled else { return }
 
-        // Check if we have accessibility permissions
-        guard AXIsProcessTrusted() else {
-            requestAccessibilityPermissions()
-            return
+        // Dispatch async to avoid blocking during permission check
+        Task { @MainActor in
+            // Check if we have accessibility permissions
+            // Pass false to avoid showing system prompt (use the string value directly to avoid concurrency issues)
+            let options = ["AXTrustedCheckOptionPrompt" as CFString: false] as CFDictionary
+            let isTrusted = AXIsProcessTrustedWithOptions(options)
+
+            NSLog("Accessibility permission check: \(isTrusted)")
+
+            guard isTrusted else {
+                NSLog("Accessibility permission not granted - showing notification")
+                requestAccessibilityPermissions()
+                return
+            }
+
+            NSLog("Accessibility permission granted - starting event tap")
+            stop() // Stop any existing tap
+            startEventTap()
         }
+    }
 
-        stop() // Stop any existing tap
-
+    private func startEventTap() {
         // Create event tap for key events
         let eventMask = (1 << CGEventType.keyDown.rawValue)
 
@@ -37,7 +52,9 @@ class HotkeyMonitor: ObservableObject {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            NSLog("Failed to create event tap")
+            NSLog("Failed to create event tap - this usually means accessibility permissions are not granted")
+            // Request permissions again
+            requestAccessibilityPermissions()
             return
         }
 
@@ -87,6 +104,7 @@ class HotkeyMonitor: ObservableObject {
 
         // Check if this matches our hotkey
         if keyCode == hotkey.keyCode && modifiers == hotkey.modifiers {
+            NSLog("Hotkey matched! KeyCode: \(keyCode), Modifiers: \(modifiers)")
             // Trigger translation
             Task { @MainActor in
                 self.handleHotkeyPressed()
@@ -200,21 +218,40 @@ class HotkeyMonitor: ObservableObject {
     }
 
     private func requestAccessibilityPermissions() {
-        let alert = NSAlert()
-        alert.messageText = "Accessibility Permission Required"
-        alert.informativeText = "BMO needs accessibility permissions to enable the global hotkey feature. Please grant access in System Settings → Privacy & Security → Accessibility."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
+        // Use notification instead of modal alert to avoid blocking
+        let notification = NSUserNotification()
+        notification.title = "Accessibility Permission Required"
+        notification.informativeText = "BMO needs accessibility permissions to enable the global hotkey feature. Click to open System Settings."
+        notification.soundName = NSUserNotificationDefaultSoundName
+        notification.hasActionButton = true
+        notification.actionButtonTitle = "Open Settings"
 
-        if alert.runModal() == .alertFirstButtonReturn {
-            // Open System Settings to Accessibility
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-        }
+        // Set user info to identify this notification
+        notification.userInfo = ["action": "openAccessibilitySettings"]
+
+        NSUserNotificationCenter.default.delegate = self
+        NSUserNotificationCenter.default.deliver(notification)
+
+        NSLog("Accessibility permission required - notification sent")
     }
 
     nonisolated deinit {
         // Note: Can't call stop() from deinit due to actor isolation
         // The system will clean up the event tap when the port is released
+    }
+}
+
+// MARK: - Notification Delegate
+extension HotkeyMonitor: NSUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
+        // Handle notification click
+        if let action = notification.userInfo?["action"] as? String, action == "openAccessibilitySettings" {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        }
+    }
+
+    nonisolated func userNotificationCenter(_ center: NSUserNotificationCenter, shouldPresent notification: NSUserNotification) -> Bool {
+        // Always show notifications even if app is in foreground
+        return true
     }
 }
