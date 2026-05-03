@@ -36,7 +36,7 @@ import AppKit
             return
         }
 
-        NSLog("BMO Service: Received text: \(text.prefix(50))...")
+        NSLog("BMO Service: Received text (\(text.count) chars)")
 
         // Check if translation service is available
         guard let translationService = translationService else {
@@ -55,8 +55,10 @@ import AppKit
             return
         }
 
-        // Perform translation asynchronously
-        Task {
+        // Perform translation asynchronously — pin to MainActor so the
+        // showTranslationResult / showError calls (which touch NSWindow / pasteboard)
+        // are valid under Swift 6 strict concurrency.
+        Task { @MainActor in
             do {
                 // Auto-detect language by trying to determine if it's Danish or English
                 // We'll try Danish->English first, and DeepL will handle detection

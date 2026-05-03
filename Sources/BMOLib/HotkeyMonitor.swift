@@ -48,6 +48,13 @@ class HotkeyMonitor: NSObject, ObservableObject {
             options: .defaultTap,
             eventsOfInterest: CGEventMask(eventMask),
             callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                // Threading invariant: startEventTap() registers this source on the main
+                // run loop, so this C callback fires on the main thread. handleEvent reads
+                // @MainActor state but stays valid under the package's Swift 5 language
+                // mode. Migrating to Swift 6 strict concurrency will require splitting
+                // handleEvent into a nonisolated event-matching pass + a MainActor hop
+                // for state access (CGEvent/Unmanaged aren't Sendable, so we can't just
+                // wrap this in MainActor.assumeIsolated).
                 let monitor = Unmanaged<HotkeyMonitor>.fromOpaque(refcon!).takeUnretainedValue()
                 return monitor.handleEvent(proxy: proxy, type: type, event: event)
             },
@@ -127,7 +134,7 @@ class HotkeyMonitor: NSObject, ObservableObject {
             return
         }
 
-        NSLog("Selected text: \(selectedText.prefix(50))...")
+        NSLog("Selected text: \(selectedText.count) chars")
 
         // Check text length
         if selectedText.count > 5000 {
@@ -141,7 +148,7 @@ class HotkeyMonitor: NSObject, ObservableObject {
         }
 
         // Perform translation
-        Task {
+        Task { @MainActor in
             do {
                 // Try Danish -> English first
                 let result = try await translationService.translate(

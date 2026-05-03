@@ -39,23 +39,33 @@ class TranslationResultWindow: NSObject {
         // Set window size
         window?.setContentSize(NSSize(width: 400, height: 200))
 
-        // Position near mouse cursor
-        if let mouseLocation = NSEvent.mouseLocation as NSPoint? {
-            let screenFrame = NSScreen.main?.frame ?? .zero
+        // Position near mouse cursor — pick the screen the cursor is actually on
+        // (NSScreen.main is the screen with key window, not the cursor's screen)
+        // and clamp all four edges within its visibleFrame (excludes menu bar / Dock).
+        let mouseLocation = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
+        if let screenFrame = screen?.visibleFrame, let windowSize = window?.frame.size {
             var windowOrigin = mouseLocation
-
             // Offset slightly from cursor
             windowOrigin.x += 20
             windowOrigin.y -= 40
 
-            // Ensure window stays on screen
-            if let windowSize = window?.frame.size {
-                if windowOrigin.x + windowSize.width > screenFrame.maxX {
-                    windowOrigin.x = screenFrame.maxX - windowSize.width - 10
-                }
-                if windowOrigin.y - windowSize.height < screenFrame.minY {
-                    windowOrigin.y = screenFrame.minY + windowSize.height + 10
-                }
+            // Clamp horizontally
+            if windowOrigin.x + windowSize.width > screenFrame.maxX {
+                windowOrigin.x = screenFrame.maxX - windowSize.width - 10
+            }
+            if windowOrigin.x < screenFrame.minX {
+                windowOrigin.x = screenFrame.minX + 10
+            }
+            // setFrameTopLeftPoint treats y as the window's top edge:
+            // top = windowOrigin.y, bottom = windowOrigin.y - height
+            if windowOrigin.y > screenFrame.maxY {
+                windowOrigin.y = screenFrame.maxY - 10
+            }
+            if windowOrigin.y - windowSize.height < screenFrame.minY {
+                windowOrigin.y = screenFrame.minY + windowSize.height + 10
             }
 
             window?.setFrameTopLeftPoint(windowOrigin)
