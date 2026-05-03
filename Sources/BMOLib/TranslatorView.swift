@@ -1,5 +1,12 @@
 import SwiftUI
+import AppKit
 import AVFoundation
+
+enum ActiveView: Equatable {
+    case main
+    case history
+    case settings
+}
 
 struct TranslatorView: View {
     @StateObject private var viewModel: TranslatorViewModel
@@ -222,10 +229,14 @@ class TranslatorViewModel: ObservableObject {
     @Published var targetLanguage: Language = .english
     @Published var isSpeaking: Bool = false
     @Published var isSpeakingInput: Bool = false
+    @Published var isCopied: Bool = false
+    @Published var activeView: ActiveView = .main
 
     private let translationService: TranslationService
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: SpeechDelegate?
+    private var autoTranslateTask: Task<Void, Never>?
+    private var copyResetTask: Task<Void, Never>?
 
     init(translationService: TranslationService) {
         self.translationService = translationService
@@ -283,9 +294,15 @@ class TranslatorViewModel: ObservableObject {
     }
 
     func clear() {
+        autoTranslateTask?.cancel()
+        autoTranslateTask = nil
+        copyResetTask?.cancel()
+        copyResetTask = nil
+
         inputText = ""
         translatedText = ""
         errorMessage = nil
+        isCopied = false
 
         // Stop any ongoing speech
         if speechSynthesizer.isSpeaking {
@@ -298,17 +315,24 @@ class TranslatorViewModel: ObservableObject {
     func translate() async {
         guard !inputText.isEmpty else { return }
 
+        // A manual translate cancels any pending auto-translate so we don't
+        // double-fire against the same input.
+        autoTranslateTask?.cancel()
+        autoTranslateTask = nil
+
         isLoading = true
         errorMessage = nil
         translatedText = ""
 
+        // Snapshot the inputs in case the user edits while the request is in flight.
+        let source = inputText
+        let from = sourceLanguage
+        let to = targetLanguage
+
         do {
-            let result = try await translationService.translate(
-                text: inputText,
-                from: sourceLanguage,
-                to: targetLanguage
-            )
+            let result = try await translationService.translate(text: source, from: from, to: to)
             translatedText = result
+            AppSettings.shared.recordTranslation(source: source, translation: result, from: from, to: to)
         } catch let error as TranslationError {
             errorMessage = errorMessage(for: error)
         } catch {
@@ -316,6 +340,38 @@ class TranslatorViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    /// Schedule a translate after a 1s pause in typing. No-op when auto-translate
+    /// is disabled or input is whitespace-only.
+    func scheduleAutoTranslateIfNeeded() {
+        autoTranslateTask?.cancel()
+        guard AppSettings.shared.autoTranslateEnabled,
+              !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            autoTranslateTask = nil
+            return
+        }
+        autoTranslateTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            await self.translate()
+        }
+    }
+
+    /// Copy the current translation to the clipboard and flash `isCopied = true`
+    /// for 1.8s so the result panel can swap its copy icon for a checkmark.
+    func copyTranslation() {
+        guard !translatedText.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(translatedText, forType: .string)
+        isCopied = true
+        copyResetTask?.cancel()
+        copyResetTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.isCopied = false
+        }
     }
 
     private func errorMessage(for error: TranslationError) -> String {

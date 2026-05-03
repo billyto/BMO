@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Language Enum
 
-enum Language: String {
+enum Language: String, Codable {
     case danish = "DA"
     case english = "EN"
 }
