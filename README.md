@@ -39,15 +39,17 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 
 2. **Set API Key as Environment Variable**
 
-   Add to your `~/.zshrc`:
+   Add to your `~/.zshenv` (preferred for GUI apps):
    ```bash
    export DEEPL_API_KEY="your-api-key-here"
    ```
 
    Then reload your shell:
    ```bash
-   source ~/.zshrc
+   source ~/.zshenv
    ```
+
+   **Note:** Use `~/.zshenv` instead of `~/.zshrc` because `.zshenv` is loaded for all shell sessions, including non-interactive ones.
 
 ### Option 1: Install as macOS App (Recommended)
 
@@ -59,8 +61,8 @@ cd BMO
 # Build the app bundle
 ./build-app.sh
 
-# Setup environment for GUI apps (IMPORTANT!)
-./setup-env.sh
+# Install LaunchAgent for automatic environment setup (ONE-TIME SETUP)
+./install-launchagent.sh
 
 # Install to Applications folder
 cp -r Sig.app /Applications/
@@ -74,12 +76,12 @@ Now you can:
 - Add to your Dock
 - Set to launch at login (System Settings → General → Login Items)
 
-**Important:** After each system restart, run:
-```bash
-cd ~/Developer/bmo/BMO && ./setup-env.sh
-```
+**What the LaunchAgent does:**
+- Automatically sets `DEEPL_API_KEY` for GUI apps at every login
+- No manual steps needed after system restarts
+- Reads the API key from your `~/.zshenv` file
 
-This ensures GUI apps can access your API key.
+**Alternative (manual setup):** If you prefer not to use the LaunchAgent, you can run `./setup-env.sh` manually after each restart.
 
 ### Option 2: Build from Source
 
@@ -145,17 +147,23 @@ If the service doesn't appear in System Settings after installation:
 
 ```
 BMO/
-├── Sources/BMO/
-│   ├── BMO.swift                      # Main app entry point
-│   ├── AppDelegate.swift              # Menu bar setup
-│   ├── TranslatorView.swift           # SwiftUI interface
-│   ├── TranslationService.swift       # Translation logic
-│   ├── URLSessionNetworkClient.swift  # DeepL API client
-│   └── Configuration.swift            # API configuration
-├── Tests/
-│   └── BMOTests/
-│       ├── TranslationServiceTests.swift          # Unit tests
-│       └── TranslationServiceIntegrationTests.swift # Integration tests
+├── Sources/
+│   ├── BMO/                           # Executable target (entry point only)
+│   │   └── BMO.swift
+│   └── BMOLib/                        # Library target — all logic and SwiftUI views
+│       ├── AppDelegate.swift          # Menu bar / NSPopover setup
+│       ├── TranslatorView.swift       # SwiftUI interface
+│       ├── TranslationService.swift   # Translation logic
+│       ├── URLSessionNetworkClient.swift # DeepL API client
+│       ├── Configuration.swift        # API configuration
+│       ├── ServiceProvider.swift      # macOS Services menu integration
+│       ├── TranslationResultWindow.swift # Floating result window for Services
+│       ├── HotkeyMonitor.swift        # Global hotkey support
+│       ├── AppSettings.swift          # User-facing settings
+│       └── SettingsView.swift         # Settings UI
+├── Tests/BMOTests/
+│   ├── TranslationServiceTests.swift             # Unit tests (mocked network)
+│   └── TranslationServiceIntegrationTests.swift  # Integration tests (real API)
 └── Package.swift
 ```
 

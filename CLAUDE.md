@@ -88,9 +88,9 @@ This separation is critical because SPM executable targets don't support SwiftUI
 ### Environment Variables
 
 The app requires `DEEPL_API_KEY` to function:
-- Command line: Set in ~/.zshrc
+- Command line: Set in `~/.zshenv` (not `~/.zshrc` — `.zshenv` is loaded for non-interactive shells too, which is what `launchctl` and the LaunchAgent read)
 - Xcode: Set in scheme environment variables
-- GUI apps: Use `./setup-env.sh` to register with launchd (required after each restart)
+- GUI apps: Run `./install-launchagent.sh` once to install `com.bmo.envsetup.plist`, which re-exports `DEEPL_API_KEY` to `launchctl` at every login. `./setup-env.sh` is the manual fallback (must be re-run after each restart)
 
 ### Menu Bar Icon
 
