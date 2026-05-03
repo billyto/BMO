@@ -17,7 +17,10 @@ swift build -c release
 # Build the macOS app bundle (creates Sig.app)
 ./build-app.sh
 
-# Setup environment for GUI apps (required after system restart)
+# One-time install: LaunchAgent that auto-exports DEEPL_API_KEY to launchctl at every login
+./install-launchagent.sh
+
+# Manual fallback: re-export DEEPL_API_KEY for the current session (must be re-run after each restart)
 ./setup-env.sh
 
 # Run from command line (requires DEEPL_API_KEY in environment)
@@ -147,7 +150,7 @@ The app now includes a system-wide translation service that appears in the macOS
 **TranslationResultWindow** (Sources/BMOLib/TranslationResultWindow.swift:5)
 - SwiftUI-based floating window for displaying translation results
 - Positioned near mouse cursor when service is invoked
-- Auto-dismisses after 10 seconds
+- Auto-dismisses after `AppSettings.shared.effectiveTimeout` (default 15s, user-configurable in Settings; 0 disables auto-dismiss)
 - Includes copy-to-clipboard functionality
 - Uses borderless window with floating level for non-intrusive display
 

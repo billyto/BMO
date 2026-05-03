@@ -31,12 +31,10 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .id("services-\(settings.servicesEnabled)")
 
-                if settings.servicesEnabled {
-                    Text("Requires app restart to take effect")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                        .padding(.leading, 20)
-                }
+                Text("Changes require app restart to take effect")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .padding(.leading, 20)
             }
 
             Divider()

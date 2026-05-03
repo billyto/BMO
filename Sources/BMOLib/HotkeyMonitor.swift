@@ -7,6 +7,7 @@ class HotkeyMonitor: NSObject, ObservableObject {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var translationService: TranslationService?
+    private var resultWindow: TranslationResultWindow?
 
     init(translationService: TranslationService) {
         self.translationService = translationService
@@ -107,7 +108,7 @@ class HotkeyMonitor: NSObject, ObservableObject {
             NSLog("Hotkey matched! KeyCode: \(keyCode), Modifiers: \(modifiers)")
             // Trigger translation
             Task { @MainActor in
-                self.handleHotkeyPressed()
+                await self.handleHotkeyPressed()
             }
             // Consume the event (don't pass it through)
             return nil
@@ -116,11 +117,11 @@ class HotkeyMonitor: NSObject, ObservableObject {
         return Unmanaged.passUnretained(event)
     }
 
-    private func handleHotkeyPressed() {
+    private func handleHotkeyPressed() async {
         NSLog("Hotkey pressed!")
 
         // Get selected text from the system
-        guard let selectedText = getSelectedText() else {
+        guard let selectedText = await getSelectedText() else {
             NSLog("No text selected")
             showNotification(title: "BMO", message: "No text selected")
             return
@@ -170,10 +171,13 @@ class HotkeyMonitor: NSObject, ObservableObject {
         }
     }
 
-    private func getSelectedText() -> String? {
-        // Save current clipboard
+    private func getSelectedText() async -> String? {
         let pasteboard = NSPasteboard.general
-        let savedContents = pasteboard.string(forType: .string)
+
+        // Snapshot the full pasteboard (all items, all types) so non-string contents
+        // — files, images, rich text, multi-item selections — survive the synthetic Cmd+C.
+        let snapshot = snapshotPasteboard(pasteboard)
+        let preChangeCount = pasteboard.changeCount
 
         // Simulate Cmd+C to copy selected text
         let source = CGEventSource(stateID: .hidSystemState)
@@ -187,26 +191,57 @@ class HotkeyMonitor: NSObject, ObservableObject {
         keyDownEvent?.post(tap: .cghidEventTap)
         keyUpEvent?.post(tap: .cghidEventTap)
 
-        // Small delay to let the copy complete
-        Thread.sleep(forTimeInterval: 0.1)
+        // Yield to the run loop while the foreground app processes the synthetic Cmd+C.
+        try? await Task.sleep(nanoseconds: 100_000_000)
 
-        // Get the copied text
-        let copiedText = pasteboard.string(forType: .string)
+        // Read the copied text only if the pasteboard actually changed; otherwise
+        // the foreground app didn't honor the copy (no selection) and the existing
+        // string contents are unrelated.
+        let copiedText: String? = pasteboard.changeCount != preChangeCount
+            ? pasteboard.string(forType: .string)
+            : nil
 
-        // Restore original clipboard if it was different
-        if copiedText != savedContents {
-            if let saved = savedContents {
-                pasteboard.clearContents()
-                pasteboard.setString(saved, forType: .string)
-            }
-        }
+        // Always restore — clearContents bumps changeCount even when types match.
+        restorePasteboard(pasteboard, snapshot: snapshot)
 
         return copiedText
     }
 
+    private func snapshotPasteboard(_ pb: NSPasteboard) -> [[NSPasteboard.PasteboardType: Data]] {
+        var snapshot: [[NSPasteboard.PasteboardType: Data]] = []
+        for item in pb.pasteboardItems ?? [] {
+            var dict: [NSPasteboard.PasteboardType: Data] = [:]
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    dict[type] = data
+                }
+            }
+            if !dict.isEmpty {
+                snapshot.append(dict)
+            }
+        }
+        return snapshot
+    }
+
+    private func restorePasteboard(_ pb: NSPasteboard, snapshot: [[NSPasteboard.PasteboardType: Data]]) {
+        pb.clearContents()
+        let items = snapshot.map { dict -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            for (type, data) in dict {
+                item.setData(data, forType: type)
+            }
+            return item
+        }
+        if !items.isEmpty {
+            pb.writeObjects(items)
+        }
+    }
+
     private func showTranslationResult(original: String, translated: String) {
-        let window = TranslationResultWindow(original: original, translated: translated)
-        window.show()
+        // Close existing window so successive translations replace, not stack
+        resultWindow?.close()
+        resultWindow = TranslationResultWindow(original: original, translated: translated)
+        resultWindow?.show()
     }
 
     private func showNotification(title: String, message: String) {

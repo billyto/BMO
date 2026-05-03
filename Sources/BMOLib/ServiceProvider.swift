@@ -30,7 +30,9 @@ import AppKit
         // Get the selected text from the pasteboard
         guard let text = pasteboard.string(forType: .string), !text.isEmpty else {
             NSLog("BMO Service: No text found on pasteboard")
-            showError("No text selected")
+            let message = "No text selected"
+            error.pointee = message as NSString
+            showError(message)
             return
         }
 
@@ -39,13 +41,17 @@ import AppKit
         // Check if translation service is available
         guard let translationService = translationService else {
             NSLog("BMO Service: Translation service not available")
-            showError("Translation service not initialized. Please ensure DEEPL_API_KEY is set.")
+            let message = "Translation service not initialized. Please ensure DEEPL_API_KEY is set."
+            error.pointee = message as NSString
+            showError(message)
             return
         }
 
         // Check text length
         if text.count > 5000 {
-            showError("Text too long. Please select less than 5000 characters.")
+            let message = "Text too long. Please select less than 5000 characters."
+            error.pointee = message as NSString
+            showError(message)
             return
         }
 

@@ -3,7 +3,6 @@ import AVFoundation
 
 struct TranslatorView: View {
     @StateObject private var viewModel: TranslatorViewModel
-    @ObservedObject var settings = AppSettings.shared
     @State private var showSettings = false
 
     init(translationService: TranslationService) {

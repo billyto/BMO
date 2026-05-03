@@ -118,7 +118,7 @@ The app now includes a macOS Service that lets you translate text from anywhere:
 3. **Choose "Translate with BMO"** from the Services submenu
 4. A **floating window** will appear with the translation
 5. Click the **Copy button** to copy the translation to clipboard
-6. The window auto-dismisses after 10 seconds or when you click away
+6. The window auto-dismisses after a configurable timeout (default 15 seconds; set in Settings → Translation Window)
 
 **Features:**
 - Auto-detects language direction (Danish ↔ English)

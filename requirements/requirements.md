@@ -3,7 +3,7 @@ The idea is that when I click on the menu bar icon, a small window will pop up w
 For technologies I'm thinking in a Native macOS application build in swift, using SwiftUI.
 Do you have any recommendations on the API or the architecture of this app?
 
-<STARS CLAUDE ANSWER HERE>
+---
 
 Hej! Hvor spændende at du lærer dansk! 🇩🇰
 
@@ -67,5 +67,3 @@ MenuBarApp (SwiftUI App)
 - **Hotkey** to show the popover without clicking (e.g., ⌘⌥T)
 
 Vil du have hjælp med at komme i gang med koden? I can help you set up the basic SwiftUI structure or integrate with DeepL's API if you'd like!
-
-</END CLAUDE RESPONSE>
