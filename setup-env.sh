@@ -7,11 +7,11 @@
 if [ -z "$DEEPL_API_KEY" ]; then
     echo "❌ Error: DEEPL_API_KEY not found in shell environment"
     echo ""
-    echo "Please set it in your ~/.zshrc:"
+    echo "Please set it in your ~/.zshenv:"
     echo "  export DEEPL_API_KEY=\"your-api-key-here\""
     echo ""
     echo "Then reload your shell:"
-    echo "  source ~/.zshrc"
+    echo "  source ~/.zshenv"
     echo ""
     echo "And run this script again."
     exit 1

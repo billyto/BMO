@@ -5,7 +5,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 ![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.4-green)
+![Version](https://img.shields.io/badge/version-1.5-green)
 
 ## Features
 
@@ -17,6 +17,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 - 🔄 Clickable language swap
 - 🔊 Text-to-speech for Danish pronunciation
 - 🎯 Proper macOS app bundle for easy installation
+- 🖱️ **NEW:** System-wide translation service - right-click any selected text and translate via Services menu
 
 ## Screenshots
 
@@ -38,15 +39,17 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 
 2. **Set API Key as Environment Variable**
 
-   Add to your `~/.zshrc`:
+   Add to your `~/.zshenv` (preferred for GUI apps):
    ```bash
    export DEEPL_API_KEY="your-api-key-here"
    ```
 
    Then reload your shell:
    ```bash
-   source ~/.zshrc
+   source ~/.zshenv
    ```
+
+   **Note:** Use `~/.zshenv` instead of `~/.zshrc` because `.zshenv` is loaded for all shell sessions, including non-interactive ones.
 
 ### Option 1: Install as macOS App (Recommended)
 
@@ -58,8 +61,8 @@ cd BMO
 # Build the app bundle
 ./build-app.sh
 
-# Setup environment for GUI apps (IMPORTANT!)
-./setup-env.sh
+# Install LaunchAgent for automatic environment setup (ONE-TIME SETUP)
+./install-launchagent.sh
 
 # Install to Applications folder
 cp -r Sig.app /Applications/
@@ -73,12 +76,12 @@ Now you can:
 - Add to your Dock
 - Set to launch at login (System Settings → General → Login Items)
 
-**Important:** After each system restart, run:
-```bash
-cd ~/Developer/bmo/BMO && ./setup-env.sh
-```
+**What the LaunchAgent does:**
+- Automatically sets `DEEPL_API_KEY` for GUI apps at every login
+- No manual steps needed after system restarts
+- Reads the API key from your `~/.zshenv` file
 
-This ensures GUI apps can access your API key.
+**Alternative (manual setup):** If you prefer not to use the LaunchAgent, you can run `./setup-env.sh` manually after each restart.
 
 ### Option 2: Build from Source
 
@@ -96,6 +99,8 @@ swift build -c release
 
 ## Usage
 
+### Menu Bar App
+
 1. Click the viking helmet icon (🪖) in your menu bar
 2. Type or paste Danish or English text
 3. Click "Translate" or press ⌘+Return
@@ -104,23 +109,61 @@ swift build -c release
 6. Click the speaker icon to hear Danish pronunciation
 7. Click the power icon to quit the app
 
+### System-Wide Translation Service (NEW in v1.5)
+
+The app now includes a macOS Service that lets you translate text from anywhere:
+
+1. **Select text** in any application (Safari, Chrome, TextEdit, Mail, etc.)
+2. **Right-click** on the selected text
+3. **Choose "Translate with BMO"** from the Services submenu
+4. A **floating window** will appear with the translation
+5. Click the **Copy button** to copy the translation to clipboard
+6. The window auto-dismisses after a configurable timeout (default 15 seconds; set in Settings → Translation Window)
+
+**Features:**
+- Auto-detects language direction (Danish ↔ English)
+- Works system-wide in any macOS app
+- Non-intrusive floating window display
+- Handles text up to 5000 characters
+- Shows error notifications if translation fails
+
+**Enabling the Service (REQUIRED):**
+
+⚠️ **Important:** macOS services are disabled by default. You MUST enable the service manually:
+
+1. Open **System Settings** → **Keyboard** → **Keyboard Shortcuts** → **Services**
+2. Scroll to find **"Translate with BMO"** under the **Text** section
+3. **Check the box** to enable it
+4. The service will now appear in right-click menus
+
+If the service doesn't appear in System Settings after installation:
+- Make sure the app is in `/Applications/` folder
+- Run `/System/Library/CoreServices/pbs -flush` in Terminal to refresh the services database
+- Restart the app
+
 ## Development
 
 ### Project Structure
 
 ```
 BMO/
-├── Sources/BMO/
-│   ├── BMO.swift                      # Main app entry point
-│   ├── AppDelegate.swift              # Menu bar setup
-│   ├── TranslatorView.swift           # SwiftUI interface
-│   ├── TranslationService.swift       # Translation logic
-│   ├── URLSessionNetworkClient.swift  # DeepL API client
-│   └── Configuration.swift            # API configuration
-├── Tests/
-│   └── BMOTests/
-│       ├── TranslationServiceTests.swift          # Unit tests
-│       └── TranslationServiceIntegrationTests.swift # Integration tests
+├── Sources/
+│   ├── BMO/                           # Executable target (entry point only)
+│   │   └── BMO.swift
+│   └── BMOLib/                        # Library target — all logic and SwiftUI views
+│       ├── AppDelegate.swift          # Menu bar / NSPopover setup
+│       ├── TranslatorView.swift       # SwiftUI interface
+│       ├── TranslationService.swift   # Translation logic
+│       ├── URLSessionNetworkClient.swift # DeepL API client
+│       ├── Configuration.swift        # API configuration
+│       ├── ServiceProvider.swift      # macOS Services menu integration
+│       ├── TranslationResultWindow.swift # Floating result window for Services
+│       ├── HotkeyMonitor.swift        # Global hotkey support
+│       ├── AppSettings.swift          # User-facing settings
+│       └── SettingsView.swift         # Settings UI
+├── Tests/BMOTests/
+│   ├── TranslationServiceTests.swift             # Unit tests (mocked network)
+│   └── TranslationServiceIntegrationTests.swift  # Integration tests (real API)
 └── Package.swift
 ```
 
@@ -180,13 +223,16 @@ DEEPL_API_KEY=your-key ENABLE_INTEGRATION_TESTS=1 swift test
 
 ## Roadmap
 
+Completed:
+- [x] System-wide translation service (v1.5) - Right-click context menu translation
+
 Future versions may include:
 
 - [ ] Translation history
 - [ ] Favorite translations
 - [ ] Dark mode support
 - [ ] Global hotkey to show popover
-- [ ] Pronunciation guide (IPA)
+- [ ] Pronunciation guide (IPA) - Partially implemented
 - [ ] Example sentences
 - [ ] More language pairs
 

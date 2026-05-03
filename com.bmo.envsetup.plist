@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.bmo.envsetup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>
+            # Source .zshenv to get DEEPL_API_KEY
+            source ~/.zshenv 2>/dev/null
+
+            # Set environment variable for launchd (GUI apps)
+            if [ -n "$DEEPL_API_KEY" ]; then
+                /bin/launchctl setenv DEEPL_API_KEY "$DEEPL_API_KEY"
+                /usr/bin/logger "BMO: DEEPL_API_KEY set successfully for GUI apps"
+            else
+                /usr/bin/logger "BMO: ERROR - DEEPL_API_KEY not found in .zshenv"
+            fi
+        </string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/bmo-envsetup.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/bmo-envsetup.error.log</string>
+</dict>
+</plist>

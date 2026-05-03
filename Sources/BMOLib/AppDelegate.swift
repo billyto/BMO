@@ -5,13 +5,21 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var translationService: TranslationService!
-    private var ipaService: IPAService!
+    private var serviceProvider: ServiceProvider!
+    private var hotkeyMonitor: HotkeyMonitor!
 
     public override init() {
         super.init()
     }
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        // Check if another instance is already running
+        if isAnotherInstanceRunning() {
+            NSLog("Another instance of BMO is already running. Terminating this instance.")
+            NSApp.terminate(nil)
+            return
+        }
+
         // Initialize translation service
         guard let apiKey = ProcessInfo.processInfo.environment["DEEPL_API_KEY"], !apiKey.isEmpty else {
             showAPIKeyAlert()
@@ -21,11 +29,23 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let networkClient = URLSessionNetworkClient()
             translationService = try TranslationService(apiKey: apiKey, networkClient: networkClient)
-            ipaService = IPAService()
         } catch {
             showAPIKeyAlert()
             return
         }
+
+        // Initialize service provider for macOS Services (if enabled)
+        if AppSettings.shared.servicesEnabled {
+            serviceProvider = ServiceProvider()
+            NSApp.servicesProvider = serviceProvider
+            NSLog("macOS Services enabled")
+        } else {
+            NSLog("macOS Services disabled")
+        }
+
+        // Initialize global hotkey monitor
+        hotkeyMonitor = HotkeyMonitor(translationService: translationService)
+        hotkeyMonitor.start()
 
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -47,8 +67,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: TranslatorView(
-                translationService: translationService,
-                ipaService: ipaService
+                translationService: translationService
             )
         )
     }
@@ -77,6 +96,28 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         return nil
+    }
+
+    private func isAnotherInstanceRunning() -> Bool {
+        let runningApps = NSWorkspace.shared.runningApplications
+
+        // For debug builds (raw executables), check by process name
+        // For release builds (app bundles), check by bundle identifier
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            // App bundle - use bundle identifier
+            let instanceCount = runningApps.filter { app in
+                app.bundleIdentifier == bundleIdentifier
+            }.count
+            return instanceCount > 1
+        } else {
+            // Raw executable - use process name
+            let processName = ProcessInfo.processInfo.processName
+            let instanceCount = runningApps.filter { app in
+                app.localizedName == processName || app.bundleURL?.lastPathComponent.contains(processName) == true
+            }.count
+            NSLog("Checking for duplicate instances by process name '\(processName)': found \(instanceCount)")
+            return instanceCount > 1
+        }
     }
 
     @MainActor
