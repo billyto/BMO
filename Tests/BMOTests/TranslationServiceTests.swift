@@ -1,5 +1,5 @@
 import XCTest
-@testable import BMO
+@testable import BMOLib
 
 final class TranslationServiceTests: XCTestCase {
 
@@ -194,7 +194,7 @@ final class TranslationServiceTests: XCTestCase {
 
 // MARK: - Mock Network Client
 
-class MockNetworkClient: NetworkClient {
+final class MockNetworkClient: NetworkClient, @unchecked Sendable {
     var mockResponse: DeepLResponse?
     var shouldThrowError = false
     var errorToThrow: Error?
