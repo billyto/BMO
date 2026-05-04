@@ -10,13 +10,46 @@ enum ActiveView: Equatable {
 
 struct TranslatorView: View {
     @StateObject private var viewModel: TranslatorViewModel
-    @State private var showSettings = false
 
     init(translationService: TranslationService) {
         _viewModel = StateObject(wrappedValue: TranslatorViewModel(
             translationService: translationService
         ))
     }
+
+    private static let viewSwitchAnimation: Animation = .easeInOut(duration: 0.22)
+
+    var body: some View {
+        ZStack {
+            switch viewModel.activeView {
+            case .main:
+                MainView(viewModel: viewModel)
+                    .transition(.move(edge: .leading))
+            case .history:
+                HistoryView(
+                    onBack: { withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .main } },
+                    onSelect: { item in
+                        viewModel.restore(from: item)
+                        withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .main }
+                    }
+                )
+                .transition(.move(edge: .trailing))
+            case .settings:
+                SettingsView(
+                    onBack: { withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .main } }
+                )
+                .transition(.move(edge: .trailing))
+            }
+        }
+        .frame(width: SigSpacing.popoverWidth, height: 400)
+        .clipped()
+    }
+}
+
+// MARK: - Main view
+
+private struct MainView: View {
+    @ObservedObject var viewModel: TranslatorViewModel
 
     private static let charLimit = 500
 
@@ -25,6 +58,9 @@ struct TranslatorView: View {
             HeaderRow()
             LanguageBar(viewModel: viewModel)
             InputPanel(viewModel: viewModel, charLimit: Self.charLimit)
+                .onChange(of: viewModel.inputText) { _, _ in
+                    viewModel.scheduleAutoTranslateIfNeeded()
+                }
             TranslateButton(
                 action: { Task { await viewModel.translate() } },
                 isLoading: viewModel.isLoading,
@@ -32,7 +68,7 @@ struct TranslatorView: View {
             )
             ResultPanel(viewModel: viewModel)
             Spacer(minLength: 0)
-            FooterRow(viewModel: viewModel, showSettings: $showSettings)
+            FooterRow(viewModel: viewModel)
         }
         .padding(SigSpacing.panelPadding)
         .frame(width: SigSpacing.popoverWidth, height: 400)
@@ -372,26 +408,21 @@ private struct FilledResult: View {
 
 private struct FooterRow: View {
     @ObservedObject var viewModel: TranslatorViewModel
-    @Binding var showSettings: Bool
+
+    private static let viewSwitchAnimation: Animation = .easeInOut(duration: 0.22)
 
     var body: some View {
         HStack {
-            // History button — sets activeView in the viewmodel; the view-switcher
-            // that branches on activeView lands in commit 3, so for now this is a
-            // no-op in the visible UI.
             FooterButton(
                 systemName: "clock",
                 help: "History",
                 isActive: viewModel.activeView == .history
             ) {
-                viewModel.activeView = .history
+                withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .history }
             }
             Spacer()
             FooterButton(systemName: "gearshape", help: "Settings", isActive: false) {
-                showSettings = true
-            }
-            .popover(isPresented: $showSettings, arrowEdge: .bottom) {
-                SettingsView()
+                withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .settings }
             }
             FooterButton(systemName: "power", help: "Quit", isActive: false) {
                 NSApplication.shared.terminate(nil)
@@ -621,6 +652,19 @@ class TranslatorViewModel: ObservableObject {
             guard let self, !Task.isCancelled else { return }
             await self.translate()
         }
+    }
+
+    /// Restore a saved translation back into the editor — called from the History
+    /// view when the user taps a row.
+    func restore(from item: HistoryItem) {
+        autoTranslateTask?.cancel()
+        autoTranslateTask = nil
+        inputText = item.sourceText
+        translatedText = item.translatedText
+        sourceLanguage = item.sourceLang
+        targetLanguage = item.targetLang
+        errorMessage = nil
+        isCopied = false
     }
 
     /// Copy the current translation to the clipboard and flash `isCopied = true`
