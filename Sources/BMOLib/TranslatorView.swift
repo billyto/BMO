@@ -18,204 +18,469 @@ struct TranslatorView: View {
         ))
     }
 
+    private static let charLimit = 500
+
     var body: some View {
-        VStack(spacing: 10) {
-            // Title
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: SigSpacing.sectionGap) {
+            HeaderRow()
+            LanguageBar(viewModel: viewModel)
+            InputPanel(viewModel: viewModel, charLimit: Self.charLimit)
+            TranslateButton(
+                action: { Task { await viewModel.translate() } },
+                isLoading: viewModel.isLoading,
+                disabled: viewModel.inputText.isEmpty || viewModel.isLoading
+            )
+            ResultPanel(viewModel: viewModel)
+            Spacer(minLength: 0)
+            FooterRow(viewModel: viewModel, showSettings: $showSettings)
+        }
+        .padding(SigSpacing.panelPadding)
+        .frame(width: SigSpacing.popoverWidth, height: 400)
+        .background(SigTheme.surface)
+    }
+}
+
+// MARK: - Header
+
+private struct HeaderRow: View {
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Sig")
-                    .font(.title)
-                    .bold()
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(SigTheme.textPrimary)
                 Text("Min danske hjælper")
-                    .font(.body)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 12))
+                    .foregroundColor(SigTheme.textMuted)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, 4)
-            .padding(.top, 30)
+            Spacer()
+            Text("DeepL")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.5)
+                .foregroundColor(SigTheme.accent)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(SigTheme.accentLight))
+        }
+    }
+}
 
-            // Language direction indicator
-            Button(action: viewModel.swapLanguages) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(viewModel.sourceLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 12))
-                        .foregroundColor(.blue)
-                        .baselineOffset(1)
-                    Text(viewModel.targetLanguage == .danish ? "🇩🇰 Danish" : "🇬🇧 English")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+// MARK: - Language bar
+
+private struct LanguageBar: View {
+    @ObservedObject var viewModel: TranslatorViewModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            LanguageChip(language: viewModel.sourceLanguage)
+            SwapButton(action: viewModel.swapLanguages)
+            LanguageChip(language: viewModel.targetLanguage)
+        }
+    }
+}
+
+private struct LanguageChip: View {
+    let language: Language
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(language == .danish ? "🇩🇰" : "🇬🇧")
+                .font(.system(size: 15))
+            Text(language == .danish ? "Danish" : "English")
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(SigTheme.textPrimary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity)
+        .background(SigTheme.chipBg)
+        .cornerRadius(SigRadius.chip)
+    }
+}
+
+private struct SwapButton: View {
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "arrow.2.squarepath")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(SigTheme.accent)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(isHovered ? SigTheme.swapHoverBg : Color.clear))
+                .scaleEffect(isHovered ? 1.08 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .help("Swap languages")
+    }
+}
+
+// MARK: - Input
+
+private struct InputPanel: View {
+    @ObservedObject var viewModel: TranslatorViewModel
+    let charLimit: Int
+    @FocusState private var isFocused: Bool
+
+    private var inputBinding: Binding<String> {
+        Binding(
+            get: { viewModel.inputText },
+            set: { viewModel.inputText = String($0.prefix(charLimit)) }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                if viewModel.inputText.isEmpty {
+                    Text("Type or paste Danish text…")
+                        .font(.system(size: 14))
+                        .foregroundColor(SigTheme.textMuted.opacity(0.7))
+                        .padding(.horizontal, 12)
+                        .padding(.top, 12)
+                        .allowsHitTesting(false)
                 }
+                TextEditor(text: inputBinding)
+                    .font(.system(size: 14))
+                    .focused($isFocused)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+                    .padding(.bottom, 4)
+                    .frame(minHeight: SigSpacing.inputMinHeight)
+                    .tint(SigTheme.accent)
             }
-            .buttonStyle(.borderless)
-            .help("Swap languages")
-            .frame(maxWidth: .infinity)
-            .offset(y: 5)
+            InputToolbar(viewModel: viewModel, charLimit: charLimit)
+        }
+        .background(SigTheme.inputBg)
+        .clipShape(RoundedRectangle(cornerRadius: SigRadius.input))
+        .overlay(
+            RoundedRectangle(cornerRadius: SigRadius.input)
+                .stroke(isFocused ? SigTheme.accent.opacity(0.55) : SigTheme.inputBorder, lineWidth: 1.5)
+        )
+        .animation(.easeInOut(duration: 0.15), value: isFocused)
+    }
+}
 
-            // Input field
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Spacer()
-                    if viewModel.sourceLanguage == .danish && !viewModel.inputText.isEmpty {
-                        Button(action: viewModel.speakInputDanish) {
-                            Image(systemName: viewModel.isSpeakingInput ? "speaker.wave.3.fill" : "speaker.wave.2")
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Speak input in Danish")
-                    }
-                }
-                .frame(height: 0)
-                .offset(y: -10)
+private struct InputToolbar: View {
+    @ObservedObject var viewModel: TranslatorViewModel
+    let charLimit: Int
 
-                ZStack(alignment: .topLeading) {
-                    // Placeholder text
-                    if viewModel.inputText.isEmpty {
-                        Text("Text to translate")
-                            .font(.body)
-                            .foregroundColor(.secondary.opacity(0.5))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 8)
-                    }
-
-                    // Text editor
-                    TextEditor(text: $viewModel.inputText)
-                        .font(.body)
-                        .frame(height: 50)
-                        .scrollDisabled(true)
-                        .scrollContentBackground(.hidden)
-                        .opacity(viewModel.inputText.isEmpty ? 0.5 : 1)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 8)
-                        .tint(Color(NSColor.darkGray))
-
-                    // Clear button (bottom-trailing)
-                    if !viewModel.inputText.isEmpty {
-                        VStack {
-                            Spacer()
-                            HStack {
-                                Spacer()
-                                Button(action: viewModel.clear) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.gray.opacity(0.7))
-                                        .font(.body)
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Clear all (⌘K)")
-                                .keyboardShortcut("k", modifiers: .command)
-                                .padding(10)
-//                                .padding(.trailing, 0)
-//                                .padding(.bottom, 0)
-                            }
-                        }
-                    }
-                }
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+    var body: some View {
+        HStack(spacing: 6) {
+            // Speak button — Danish-only since the existing TTS forces a Danish voice.
+            if viewModel.sourceLanguage == .danish && !viewModel.inputText.isEmpty {
+                IconButton(
+                    systemName: viewModel.isSpeakingInput ? "speaker.wave.3.fill" : "speaker.wave.2",
+                    tint: viewModel.isSpeakingInput ? SigTheme.accent : SigTheme.textMuted,
+                    action: viewModel.speakInputDanish,
+                    help: "Speak input"
                 )
             }
-
-            // Translate button
-            Button(action: {
-                Task {
-                    await viewModel.translate()
-                }
-            }) {
-                HStack {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 16, height: 16)
-                    } else {
-                        Image(systemName: "globe")
-                    }
-                    Text("Translate")
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+            Spacer()
+            Text("\(viewModel.inputText.count)/\(charLimit)")
+                .font(.system(size: 10.5))
+                .monospacedDigit()
+                .foregroundColor(viewModel.inputText.count >= charLimit ? SigTheme.warn : SigTheme.textMuted)
+            if !viewModel.inputText.isEmpty {
+                IconButton(
+                    systemName: "xmark.circle.fill",
+                    tint: SigTheme.textMuted,
+                    action: viewModel.clear,
+                    help: "Clear (⌘K)"
+                )
+                .keyboardShortcut("k", modifiers: .command)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(viewModel.inputText.isEmpty || viewModel.isLoading)
-            .keyboardShortcut(.return, modifiers: .command)
-
-            // Result area
-            VStack(alignment: .leading, spacing: 4) {
-                if let error = viewModel.errorMessage {
-                    Text("Error:")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                    Text(error)
-                        .font(.body)
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(4)
-                } else if !viewModel.translatedText.isEmpty {
-                    HStack {
-                        Text("Translation:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Button(action: viewModel.speakDanish) {
-                            Image(systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2")
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Speak Danish translation")
-                    }
-                    ScrollView {
-                        Text(viewModel.translatedText)
-                            .font(.body)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                            .padding(8)
-                    }
-                    .frame(maxHeight: 100)
-                } else {
-                    Text("...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                }
-            }
-            .frame(minHeight: 100)
-
-            // Settings and Shutdown buttons
-            HStack {
-                Spacer()
-                Button(action: {
-                    showSettings = true
-                }) {
-                    Image(systemName: "gearshape")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .help("Settings")
-                .popover(isPresented: $showSettings, arrowEdge: .bottom) {
-                    SettingsView()
-                }
-
-                Button(action: {
-                    NSApplication.shared.terminate(nil)
-                }) {
-                    Image(systemName: "power")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .help("Quit BMO")
-            }
-            .padding(.top, 4)
-            .offset(x:2 , y: -28)
         }
-        .padding()
-        .frame(width: 380, height: 340)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 6)
+        .frame(height: 24)
+    }
+}
+
+// MARK: - Translate button
+
+private struct TranslateButton: View {
+    let action: () -> Void
+    let isLoading: Bool
+    let disabled: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                if isLoading {
+                    BouncingDots(color: .white)
+                } else {
+                    HStack(spacing: 7) {
+                        Image(systemName: "globe")
+                            .font(.system(size: 14))
+                        Text("Translate")
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .tracking(0.2)
+                        Text("⌘↩")
+                            .font(.system(size: 10.5))
+                            .opacity(0.7)
+                    }
+                }
+            }
+            .foregroundColor(disabled ? SigTheme.buttonDisabledText : .white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, SigSpacing.buttonVerticalPadding)
+            .background(
+                RoundedRectangle(cornerRadius: SigRadius.input)
+                    .fill(disabled ? SigTheme.buttonDisabledBg
+                          : (isHovered ? SigTheme.buttonHover : SigTheme.buttonBg))
+            )
+            .offset(y: !disabled && isHovered ? -1 : 0)
+            .shadow(
+                color: disabled ? .clear : SigTheme.buttonBg.opacity(isHovered ? 0.4 : 0.18),
+                radius: isHovered ? 10 : 4,
+                x: 0,
+                y: isHovered ? 3 : 1
+            )
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .onHover { isHovered = $0 }
+        .keyboardShortcut(.return, modifiers: .command)
+    }
+}
+
+// MARK: - Result panel
+
+private struct ResultPanel: View {
+    @ObservedObject var viewModel: TranslatorViewModel
+
+    var body: some View {
+        Group {
+            if viewModel.isLoading {
+                LoadingResult()
+            } else if let error = viewModel.errorMessage {
+                ErrorResult(message: error)
+            } else if viewModel.translatedText.isEmpty {
+                EmptyResult()
+            } else {
+                FilledResult(viewModel: viewModel)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct EmptyResult: View {
+    var body: some View {
+        Text("Translation will appear here")
+            .font(.system(size: 12))
+            .foregroundColor(SigTheme.textMuted)
+            .frame(maxWidth: .infinity, minHeight: SigSpacing.resultMinHeight)
+            .overlay(
+                RoundedRectangle(cornerRadius: SigRadius.input)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                    .foregroundColor(SigTheme.divider)
+            )
+    }
+}
+
+private struct LoadingResult: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            BouncingDots(color: SigTheme.textMuted)
+            Text("Translating…")
+                .font(.system(size: 12))
+                .foregroundColor(SigTheme.textMuted)
+            Spacer()
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: SigSpacing.resultMinHeight, alignment: .topLeading)
+        .background(SigTheme.resultBg)
+        .clipShape(RoundedRectangle(cornerRadius: SigRadius.input))
+        .overlay(
+            RoundedRectangle(cornerRadius: SigRadius.input)
+                .stroke(SigTheme.resultBorder, lineWidth: 1.5)
+        )
+    }
+}
+
+private struct ErrorResult: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 14))
+                .foregroundColor(SigTheme.errorText)
+            Text(message)
+                .font(.system(size: 13))
+                .foregroundColor(SigTheme.errorText)
+                .lineSpacing(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: SigSpacing.resultMinHeight, alignment: .topLeading)
+        .background(SigTheme.errorBg)
+        .clipShape(RoundedRectangle(cornerRadius: SigRadius.input))
+        .overlay(
+            RoundedRectangle(cornerRadius: SigRadius.input)
+                .stroke(SigTheme.errorBorder, lineWidth: 1.5)
+        )
+    }
+}
+
+private struct FilledResult: View {
+    @ObservedObject var viewModel: TranslatorViewModel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(viewModel.translatedText)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(SigTheme.textPrimary)
+                .lineSpacing(4)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 3) {
+                IconButton(
+                    systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
+                    tint: viewModel.isSpeaking ? SigTheme.accent : SigTheme.textMuted,
+                    action: viewModel.speakDanish,
+                    help: "Speak"
+                )
+                IconButton(
+                    systemName: viewModel.isCopied ? "checkmark" : "doc.on.doc",
+                    tint: viewModel.isCopied ? SigTheme.success : SigTheme.textMuted,
+                    action: viewModel.copyTranslation,
+                    help: "Copy"
+                )
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: SigSpacing.resultMinHeight, alignment: .topLeading)
+        .background(SigTheme.resultBg)
+        .clipShape(RoundedRectangle(cornerRadius: SigRadius.input))
+        .overlay(
+            RoundedRectangle(cornerRadius: SigRadius.input)
+                .stroke(SigTheme.resultBorder, lineWidth: 1.5)
+        )
+    }
+}
+
+// MARK: - Footer
+
+private struct FooterRow: View {
+    @ObservedObject var viewModel: TranslatorViewModel
+    @Binding var showSettings: Bool
+
+    var body: some View {
+        HStack {
+            // History button — sets activeView in the viewmodel; the view-switcher
+            // that branches on activeView lands in commit 3, so for now this is a
+            // no-op in the visible UI.
+            FooterButton(
+                systemName: "clock",
+                help: "History",
+                isActive: viewModel.activeView == .history
+            ) {
+                viewModel.activeView = .history
+            }
+            Spacer()
+            FooterButton(systemName: "gearshape", help: "Settings", isActive: false) {
+                showSettings = true
+            }
+            .popover(isPresented: $showSettings, arrowEdge: .bottom) {
+                SettingsView()
+            }
+            FooterButton(systemName: "power", help: "Quit", isActive: false) {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+}
+
+private struct FooterButton: View {
+    let systemName: String
+    let help: String
+    let isActive: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    private var foreground: Color {
+        if isActive { return SigTheme.accent }
+        return isHovered ? SigTheme.textPrimary : SigTheme.textMuted
+    }
+
+    private var background: Color {
+        (isActive || isHovered) ? SigTheme.chipBg : .clear
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13))
+                .foregroundColor(foreground)
+                .frame(width: SigSpacing.footerButtonSize, height: SigSpacing.footerButtonSize)
+                .background(
+                    RoundedRectangle(cornerRadius: SigRadius.footerButton)
+                        .fill(background)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(help)
+    }
+}
+
+// MARK: - Shared bits
+
+private struct IconButton: View {
+    let systemName: String
+    let tint: Color
+    let action: () -> Void
+    let help: String
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13))
+                .foregroundColor(tint)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(isHovered ? SigTheme.chipBg.opacity(0.6) : .clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(help)
+    }
+}
+
+private struct BouncingDots: View {
+    let color: Color
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .fill(color)
+                    .frame(width: 5, height: 5)
+                    .opacity(animating ? 1 : 0.4)
+                    .offset(y: animating ? -4 : 0)
+                    .animation(
+                        .easeInOut(duration: 0.5)
+                            .repeatForever()
+                            .delay(Double(i) * 0.18),
+                        value: animating
+                    )
+            }
+        }
+        .frame(height: 16)
+        .onAppear { animating = true }
     }
 }
 
