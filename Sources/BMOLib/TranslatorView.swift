@@ -52,18 +52,15 @@ private struct MainView: View {
     @ObservedObject var viewModel: TranslatorViewModel
     @ObservedObject private var settings = AppSettings.shared
 
-    private static let charLimit = 500
-
     private var showAutoTranslateHint: Bool {
-        settings.autoTranslateEnabled
-            && !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        settings.autoTranslateEnabled && !viewModel.isInputBlank
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: SigSpacing.sectionGap) {
             HeaderRow()
             LanguageBar(viewModel: viewModel)
-            InputPanel(viewModel: viewModel, charLimit: Self.charLimit)
+            InputPanel(viewModel: viewModel)
                 .onChange(of: viewModel.inputText) { _, _ in
                     viewModel.scheduleAutoTranslateIfNeeded()
                 }
@@ -71,7 +68,7 @@ private struct MainView: View {
                 TranslateButton(
                     action: { Task { await viewModel.translate() } },
                     isLoading: viewModel.isLoading,
-                    disabled: viewModel.inputText.isEmpty || viewModel.isLoading
+                    disabled: viewModel.isInputBlank || viewModel.isLoading
                 )
                 if showAutoTranslateHint {
                     Text("Auto-translating as you type")
@@ -178,13 +175,12 @@ private struct SwapButton: View {
 
 private struct InputPanel: View {
     @ObservedObject var viewModel: TranslatorViewModel
-    let charLimit: Int
     @FocusState private var isFocused: Bool
 
     private var inputBinding: Binding<String> {
         Binding(
             get: { viewModel.inputText },
-            set: { viewModel.inputText = String($0.prefix(charLimit)) }
+            set: { viewModel.setInput($0) }
         )
     }
 
@@ -212,7 +208,7 @@ private struct InputPanel: View {
                     .frame(minHeight: SigSpacing.inputMinHeight)
                     .tint(SigTheme.accent)
             }
-            InputToolbar(viewModel: viewModel, charLimit: charLimit)
+            InputToolbar(viewModel: viewModel)
         }
         .background(SigTheme.inputBg)
         .clipShape(RoundedRectangle(cornerRadius: SigRadius.input))
@@ -226,7 +222,8 @@ private struct InputPanel: View {
 
 private struct InputToolbar: View {
     @ObservedObject var viewModel: TranslatorViewModel
-    let charLimit: Int
+
+    private var charLimit: Int { TranslatorViewModel.inputCharLimit }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -546,6 +543,11 @@ private struct BouncingDots: View {
 
 @MainActor
 class TranslatorViewModel: ObservableObject {
+    /// Max chars the input field accepts. All write paths (TextEditor binding,
+    /// swapLanguages, restore) must go through `setInput(_:)` so the limit can't
+    /// be bypassed and leave the char counter wedged above the cap.
+    static let inputCharLimit = 500
+
     @Published var inputText: String = ""
     @Published var translatedText: String = ""
     @Published var errorMessage: String?
@@ -562,6 +564,19 @@ class TranslatorViewModel: ObservableObject {
     private var speechDelegate: SpeechDelegate?
     private var autoTranslateTask: Task<Void, Never>?
     private var copyResetTask: Task<Void, Never>?
+
+    /// True when input is empty or only whitespace/newlines — used to disable
+    /// the Translate button and short-circuit translate() so we don't send
+    /// useless requests.
+    var isInputBlank: Bool {
+        inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Programmatic input setter that enforces `inputCharLimit`. Use this from
+    /// any code path that's not the TextEditor binding (e.g. swap, restore).
+    func setInput(_ text: String) {
+        inputText = String(text.prefix(Self.inputCharLimit))
+    }
 
     init(translationService: TranslationService) {
         self.translationService = translationService
@@ -610,10 +625,12 @@ class TranslatorViewModel: ObservableObject {
         sourceLanguage = targetLanguage
         targetLanguage = temp
 
-        // Optionally swap the text too
+        // Optionally swap the text too. Translation results can exceed
+        // inputCharLimit (DeepL doesn't promise length-preserving output), so
+        // go through setInput to truncate rather than assign directly.
         if !translatedText.isEmpty {
             let tempText = inputText
-            inputText = translatedText
+            setInput(translatedText)
             translatedText = tempText
         }
     }
@@ -638,10 +655,14 @@ class TranslatorViewModel: ObservableObject {
     }
 
     func translate() async {
-        guard !inputText.isEmpty else { return }
+        guard !isInputBlank else { return }
 
-        // A manual translate cancels any pending auto-translate so we don't
-        // double-fire against the same input.
+        // Manual translate cancels any pending auto-translate so we don't
+        // double-fire against the same input. Cancel-then-nil is safe here
+        // because when translate() is called from within the auto-translate
+        // task itself, scheduleAutoTranslateIfNeeded has already nil-ed the
+        // reference (see the comment there) — so this is a no-op in that
+        // path and won't trigger self-cancellation of the URLSession await.
         autoTranslateTask?.cancel()
         autoTranslateTask = nil
 
@@ -671,14 +692,19 @@ class TranslatorViewModel: ObservableObject {
     /// is disabled or input is whitespace-only.
     func scheduleAutoTranslateIfNeeded() {
         autoTranslateTask?.cancel()
-        guard AppSettings.shared.autoTranslateEnabled,
-              !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard AppSettings.shared.autoTranslateEnabled, !isInputBlank else {
             autoTranslateTask = nil
             return
         }
         autoTranslateTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard let self, !Task.isCancelled else { return }
+            // Release the self-reference BEFORE calling translate(). Otherwise
+            // translate()'s autoTranslateTask?.cancel() cancels the very task
+            // we're inside, and Swift's cancellation propagation makes the
+            // upcoming URLSession await throw .cancelled — auto-translate would
+            // silently fail with a "network error" message.
+            self.autoTranslateTask = nil
             await self.translate()
         }
     }
@@ -688,7 +714,10 @@ class TranslatorViewModel: ObservableObject {
     func restore(from item: HistoryItem) {
         autoTranslateTask?.cancel()
         autoTranslateTask = nil
-        inputText = item.sourceText
+        // History items can hold source text that's longer than the current
+        // input limit (e.g. limit lowered after the item was recorded), so go
+        // through setInput rather than assigning directly.
+        setInput(item.sourceText)
         translatedText = item.translatedText
         sourceLanguage = item.sourceLang
         targetLanguage = item.targetLang
