@@ -50,8 +50,14 @@ struct TranslatorView: View {
 
 private struct MainView: View {
     @ObservedObject var viewModel: TranslatorViewModel
+    @ObservedObject private var settings = AppSettings.shared
 
     private static let charLimit = 500
+
+    private var showAutoTranslateHint: Bool {
+        settings.autoTranslateEnabled
+            && !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: SigSpacing.sectionGap) {
@@ -61,11 +67,21 @@ private struct MainView: View {
                 .onChange(of: viewModel.inputText) { _, _ in
                     viewModel.scheduleAutoTranslateIfNeeded()
                 }
-            TranslateButton(
-                action: { Task { await viewModel.translate() } },
-                isLoading: viewModel.isLoading,
-                disabled: viewModel.inputText.isEmpty || viewModel.isLoading
-            )
+            VStack(spacing: 4) {
+                TranslateButton(
+                    action: { Task { await viewModel.translate() } },
+                    isLoading: viewModel.isLoading,
+                    disabled: viewModel.inputText.isEmpty || viewModel.isLoading
+                )
+                if showAutoTranslateHint {
+                    Text("Auto-translating as you type")
+                        .font(.system(size: 10.5))
+                        .foregroundColor(SigTheme.textMuted)
+                        .frame(maxWidth: .infinity)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.15), value: showAutoTranslateHint)
             ResultPanel(viewModel: viewModel)
             Spacer(minLength: 0)
             FooterRow(viewModel: viewModel)
@@ -126,6 +142,11 @@ private struct LanguageChip: View {
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundColor(SigTheme.textPrimary)
         }
+        // Cross-fade the flag + label when the language flips so the chip
+        // doesn't visibly snap during a swap.
+        .id(language)
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.18), value: language)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity)
@@ -137,12 +158,19 @@ private struct LanguageChip: View {
 private struct SwapButton: View {
     let action: () -> Void
     @State private var isHovered = false
+    @State private var rotation: Double = 0
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.65)) {
+                rotation += 180
+            }
+            action()
+        }) {
             Image(systemName: "arrow.2.squarepath")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(SigTheme.accent)
+                .rotationEffect(.degrees(rotation))
                 .frame(width: 32, height: 32)
                 .background(Circle().fill(isHovered ? SigTheme.swapHoverBg : Color.clear))
                 .scaleEffect(isHovered ? 1.08 : 1.0)
