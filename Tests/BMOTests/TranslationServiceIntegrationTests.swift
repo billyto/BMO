@@ -1,5 +1,5 @@
 import XCTest
-@testable import BMO
+@testable import BMOLib
 
 /// Integration tests that call the real DeepL API
 /// These tests are disabled by default to avoid using API quota during regular test runs

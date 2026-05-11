@@ -150,30 +150,12 @@ class HotkeyMonitor: NSObject, ObservableObject {
         // Perform translation
         Task { @MainActor in
             do {
-                // Try Danish -> English first
-                let result = try await translationService.translate(
-                    text: selectedText,
-                    from: .danish,
-                    to: .english
-                )
-
-                NSLog("Translation successful")
-                showTranslationResult(original: selectedText, translated: result)
+                let result = try await translationService.autoTranslate(text: selectedText)
+                NSLog("Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
+                showTranslationResult(original: selectedText, translated: result.translated)
             } catch {
-                // Try English -> Danish
-                do {
-                    let result = try await translationService.translate(
-                        text: selectedText,
-                        from: .english,
-                        to: .danish
-                    )
-
-                    NSLog("Translation successful (EN->DA)")
-                    showTranslationResult(original: selectedText, translated: result)
-                } catch {
-                    NSLog("Translation failed: \(error)")
-                    showNotification(title: "BMO Translation Error", message: "Translation failed: \(error.localizedDescription)")
-                }
+                NSLog("Translation failed: \(error)")
+                showNotification(title: "BMO Translation Error", message: "Translation failed: \(error.localizedDescription)")
             }
         }
     }

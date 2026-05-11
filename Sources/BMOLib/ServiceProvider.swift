@@ -60,33 +60,12 @@ import AppKit
         // are valid under Swift 6 strict concurrency.
         Task { @MainActor in
             do {
-                // Auto-detect language by trying to determine if it's Danish or English
-                // We'll try Danish->English first, and DeepL will handle detection
-                let result = try await translationService.translate(
-                    text: text,
-                    from: .danish,
-                    to: .english
-                )
-
-                NSLog("BMO Service: Translation successful")
-                self.showTranslationResult(original: text, translated: result)
+                let result = try await translationService.autoTranslate(text: text)
+                NSLog("BMO Service: Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
+                self.showTranslationResult(original: text, translated: result.translated)
             } catch {
                 NSLog("BMO Service: Translation failed: \(error)")
-
-                // If it failed with Danish->English, try English->Danish
-                do {
-                    let result = try await translationService.translate(
-                        text: text,
-                        from: .english,
-                        to: .danish
-                    )
-
-                    NSLog("BMO Service: Translation successful (EN->DA)")
-                    self.showTranslationResult(original: text, translated: result)
-                } catch {
-                    NSLog("BMO Service: Translation failed both directions: \(error)")
-                    self.showError("Translation failed: \(error.localizedDescription)")
-                }
+                self.showError("Translation failed: \(error.localizedDescription)")
             }
         }
     }

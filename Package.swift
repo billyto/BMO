@@ -35,7 +35,7 @@ let package = Package(
         ),
         .testTarget(
             name: "BMOTests",
-            dependencies: ["BMO"]
+            dependencies: ["BMOLib"]
         ),
     ]
 )
