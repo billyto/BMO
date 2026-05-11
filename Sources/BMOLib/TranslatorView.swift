@@ -192,11 +192,14 @@ private struct InputPanel: View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
                 if viewModel.inputText.isEmpty {
+                    // Padding here is calibrated so the placeholder lines up with
+                    // the first glyph of the underlying NSTextView (TextEditor's
+                    // outer padding + NSTextView's internal text container inset).
                     Text("Type or paste Danish text…")
                         .font(.system(size: 14))
                         .foregroundColor(SigTheme.textMuted.opacity(0.7))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .padding(.horizontal, 13)
+                        .padding(.top, 8)
                         .allowsHitTesting(false)
                 }
                 TextEditor(text: inputBinding)
@@ -204,7 +207,7 @@ private struct InputPanel: View {
                     .focused($isFocused)
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 8)
-                    .padding(.top, 4)
+                    .padding(.top, 9)
                     .padding(.bottom, 4)
                     .frame(minHeight: SigSpacing.inputMinHeight)
                     .tint(SigTheme.accent)
@@ -469,14 +472,20 @@ private struct FooterButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 13))
-                .foregroundColor(foreground)
-                .frame(width: SigSpacing.footerButtonSize, height: SigSpacing.footerButtonSize)
-                .background(
-                    RoundedRectangle(cornerRadius: SigRadius.footerButton)
-                        .fill(background)
-                )
+            ZStack {
+                // ZStack forces the SF Symbol's geometric center onto the chip
+                // center; .frame around an Image was centering each symbol's
+                // bounding box, but clock / gearshape / power have different
+                // visible glyph offsets within those boxes which made the row
+                // look bottom-aligned.
+                RoundedRectangle(cornerRadius: SigRadius.footerButton)
+                    .fill(background)
+                Image(systemName: systemName)
+                    .font(.system(size: 13))
+                    .imageScale(.medium)
+                    .foregroundColor(foreground)
+            }
+            .frame(width: SigSpacing.footerButtonSize, height: SigSpacing.footerButtonSize)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
