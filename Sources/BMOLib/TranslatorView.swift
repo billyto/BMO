@@ -96,24 +96,16 @@ private struct MainView: View {
 
 private struct HeaderRow: View {
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Sig")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(SigTheme.textPrimary)
-                Text("Min danske hjælper")
-                    .font(.system(size: 12))
-                    .foregroundColor(SigTheme.textMuted)
-            }
-            Spacer()
-            Text("DeepL")
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(0.5)
-                .foregroundColor(SigTheme.accent)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(SigTheme.accentLight))
+        // DeepL badge moved to Settings as the API-key status indicator.
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Sig")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(SigTheme.textPrimary)
+            Text("Min danske hjælper")
+                .font(.system(size: 12))
+                .foregroundColor(SigTheme.textMuted)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

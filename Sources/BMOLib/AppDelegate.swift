@@ -34,6 +34,10 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Kick off the live key-status check so the Settings indicator can
+        // tell the user whether DeepL is actually accepting the key.
+        APIKeyMonitor.shared.verify()
+
         // Initialize service provider for macOS Services (if enabled)
         if AppSettings.shared.servicesEnabled {
             serviceProvider = ServiceProvider()

@@ -3,10 +3,16 @@ import SwiftUI
 struct SettingsView: View {
     let onBack: () -> Void
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var keyMonitor = APIKeyMonitor.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ViewHeader(title: "Settings", onBack: onBack)
+            ViewHeader(
+                title: "Settings",
+                onBack: onBack,
+                trailing: AnyView(APIKeyBadge(status: keyMonitor.status))
+            )
+            .onAppear { keyMonitor.verify() }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -165,6 +171,52 @@ private struct SectionDivider: View {
             .fill(SigTheme.divider)
             .frame(height: 1)
             .padding(.vertical, 4)
+    }
+}
+
+// MARK: - DeepL API-key status pill
+
+private struct APIKeyBadge: View {
+    let status: APIKeyMonitor.Status
+
+    private var dotColor: Color {
+        switch status {
+        case .missing: return SigTheme.errorText
+        case .invalid, .unreachable: return SigTheme.warn
+        case .valid: return SigTheme.success
+        case .checking: return SigTheme.textMuted
+        }
+    }
+
+    private var helpText: String {
+        switch status {
+        case .missing: return "DEEPL_API_KEY not set in environment"
+        case .checking: return "Checking DeepL API key…"
+        case .valid: return "DeepL API key is valid"
+        case .invalid: return "DeepL rejected the API key"
+        case .unreachable: return "Could not reach DeepL — check your connection"
+        }
+    }
+
+    var body: some View {
+        Button(action: APIKeyMonitor.shared.verify) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 7, height: 7)
+                Text("DeepL")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundColor(SigTheme.textPrimary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(dotColor.opacity(0.15)))
+            .overlay(Capsule().stroke(dotColor.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.2), value: status)
+        .help(helpText)
     }
 }
 
