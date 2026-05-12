@@ -62,7 +62,11 @@ import AppKit
             do {
                 let result = try await translationService.autoTranslate(text: text)
                 NSLog("BMO Service: Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
-                self.showTranslationResult(original: text, translated: result.translated)
+                self.showTranslationResult(
+                    original: text,
+                    translated: result.translated,
+                    detectedSource: result.detectedSource
+                )
             } catch {
                 NSLog("BMO Service: Translation failed: \(error)")
                 self.showError("Translation failed: \(error.localizedDescription)")
@@ -70,12 +74,16 @@ import AppKit
         }
     }
 
-    private func showTranslationResult(original: String, translated: String) {
+    private func showTranslationResult(original: String, translated: String, detectedSource: Language?) {
         // Close existing window if any
         resultWindow?.close()
 
         // Create and show new result window
-        resultWindow = TranslationResultWindow(original: original, translated: translated)
+        resultWindow = TranslationResultWindow(
+            original: original,
+            translated: translated,
+            detectedSource: detectedSource
+        )
         resultWindow?.show()
     }
 

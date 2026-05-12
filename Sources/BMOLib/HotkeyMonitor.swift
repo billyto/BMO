@@ -171,7 +171,11 @@ class HotkeyMonitor: NSObject, ObservableObject {
             do {
                 let result = try await translationService.autoTranslate(text: selectedText)
                 NSLog("Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
-                showTranslationResult(original: selectedText, translated: result.translated)
+                showTranslationResult(
+                    original: selectedText,
+                    translated: result.translated,
+                    detectedSource: result.detectedSource
+                )
             } catch {
                 NSLog("Translation failed: \(error)")
                 showNotification(title: "BMO Translation Error", message: "Translation failed: \(error.localizedDescription)")
@@ -245,10 +249,14 @@ class HotkeyMonitor: NSObject, ObservableObject {
         }
     }
 
-    private func showTranslationResult(original: String, translated: String) {
+    private func showTranslationResult(original: String, translated: String, detectedSource: Language?) {
         // Close existing window so successive translations replace, not stack
         resultWindow?.close()
-        resultWindow = TranslationResultWindow(original: original, translated: translated)
+        resultWindow = TranslationResultWindow(
+            original: original,
+            translated: translated,
+            detectedSource: detectedSource
+        )
         resultWindow?.show()
     }
 
