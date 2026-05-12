@@ -23,7 +23,7 @@ struct SigIconButton: View {
                 .foregroundColor(tint)
                 .frame(width: frameSize, height: frameSize)
                 .background(
-                    RoundedRectangle(cornerRadius: 5)
+                    RoundedRectangle(cornerRadius: SigRadius.chip)
                         .fill(isHovered ? SigTheme.chipBg.opacity(0.6) : .clear)
                 )
         }

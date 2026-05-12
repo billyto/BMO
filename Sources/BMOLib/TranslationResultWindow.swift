@@ -75,6 +75,15 @@ class TranslationResultWindow: NSObject {
             if windowOrigin.y - windowSize.height < screenFrame.minY {
                 windowOrigin.y = screenFrame.minY + windowSize.height + 10
             }
+            // Re-clamp the top edge after the bottom adjustment. The
+            // ScrollView in translationCard caps height at ~320pt + chrome so
+            // the window should fit any reasonable screen, but on a tiny
+            // display the bottom clamp could still push the top above maxY.
+            // Better to clip the bottom than to render the close button
+            // off-screen.
+            if windowOrigin.y > screenFrame.maxY {
+                windowOrigin.y = screenFrame.maxY
+            }
 
             win.setFrameTopLeftPoint(windowOrigin)
         }
@@ -226,12 +235,18 @@ struct TranslationResultView: View {
 
     private var translationCard: some View {
         HStack(alignment: .top, spacing: 8) {
-            Text(translated)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(SigTheme.textPrimary)
-                .lineSpacing(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
+            // Cap the visible height so a very long translation can't make the
+            // window taller than the screen (would otherwise leave the top
+            // edge off-screen after the bottom clamp in setupWindow).
+            ScrollView(.vertical) {
+                Text(translated)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(SigTheme.textPrimary)
+                    .lineSpacing(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .frame(maxHeight: 320)
             VStack(spacing: 3) {
                 let isPlayingTranslation = viewModel.isSpeaking && viewModel.currentSpeakingText == translated
                 SigIconButton.compact(
