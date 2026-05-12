@@ -233,11 +233,11 @@ private struct InputToolbar: View {
         HStack(spacing: 6) {
             // Speak button — Danish-only since the existing TTS forces a Danish voice.
             if viewModel.sourceLanguage == .danish && !viewModel.inputText.isEmpty {
-                IconButton(
+                SigIconButton(
                     systemName: viewModel.isSpeakingInput ? "speaker.wave.3.fill" : "speaker.wave.2",
                     tint: viewModel.isSpeakingInput ? SigTheme.accent : SigTheme.textMuted,
-                    action: viewModel.speakInputDanish,
-                    help: "Speak input"
+                    help: "Speak input",
+                    action: viewModel.speakInputDanish
                 )
             }
             Spacer()
@@ -246,11 +246,11 @@ private struct InputToolbar: View {
                 .monospacedDigit()
                 .foregroundColor(viewModel.inputText.count >= charLimit ? SigTheme.warn : SigTheme.textMuted)
             if !viewModel.inputText.isEmpty {
-                IconButton(
+                SigIconButton(
                     systemName: "xmark.circle.fill",
                     tint: SigTheme.textMuted,
-                    action: viewModel.clear,
-                    help: "Clear (⌘K)"
+                    help: "Clear (⌘K)",
+                    action: viewModel.clear
                 )
                 .keyboardShortcut("k", modifiers: .command)
             }
@@ -403,17 +403,17 @@ private struct FilledResult: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 3) {
-                IconButton(
+                SigIconButton(
                     systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
                     tint: viewModel.isSpeaking ? SigTheme.accent : SigTheme.textMuted,
-                    action: viewModel.speakDanish,
-                    help: "Speak"
+                    help: "Speak",
+                    action: viewModel.speakDanish
                 )
-                IconButton(
+                SigIconButton(
                     systemName: viewModel.isCopied ? "checkmark" : "doc.on.doc",
                     tint: viewModel.isCopied ? SigTheme.success : SigTheme.textMuted,
-                    action: viewModel.copyTranslation,
-                    help: "Copy"
+                    help: "Copy",
+                    action: viewModel.copyTranslation
                 )
             }
         }
@@ -499,30 +499,6 @@ private struct FooterButton: View {
 }
 
 // MARK: - Shared bits
-
-private struct IconButton: View {
-    let systemName: String
-    let tint: Color
-    let action: () -> Void
-    let help: String
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 13))
-                .foregroundColor(tint)
-                .frame(width: 24, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(isHovered ? SigTheme.chipBg.opacity(0.6) : .clear)
-                )
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .help(help)
-    }
-}
 
 private struct BouncingDots: View {
     let color: Color

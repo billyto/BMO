@@ -114,8 +114,10 @@ struct TranslationResultView: View {
     let original: String
     let translated: String
     /// What DeepL's `detected_source_language` came back as. Drives the
-    /// direction label and per-side TTS voice. Nil means "we don't know"
-    /// (rare — only when DeepL returned a language code outside DA/EN).
+    /// direction label and per-side TTS voice. Nil means DeepL returned a
+    /// language code that doesn't fit our DA/EN `Language` enum — i.e.
+    /// anything other than Danish or English (French, German, Spanish, etc.).
+    /// In that case we hide the direction badge and default TTS to en-US.
     let detectedSource: Language?
     let onCopy: () -> Void
     let onClose: () -> Void
@@ -167,6 +169,14 @@ struct TranslationResultView: View {
             RoundedRectangle(cornerRadius: SigRadius.panel)
                 .stroke(SigTheme.divider, lineWidth: 1)
         )
+        .onDisappear {
+            // Window may close before the 1.8s reset fires (auto-dismiss, the
+            // X button, or a follow-up translation replacing us). Cancel so
+            // the Task doesn't keep the @State alive and try to mutate after
+            // teardown.
+            copyResetTask?.cancel()
+            copyResetTask = nil
+        }
     }
 
     private var header: some View {
@@ -183,7 +193,7 @@ struct TranslationResultView: View {
                     .background(Capsule().fill(SigTheme.chipBg))
             }
             Spacer()
-            ResultIconButton(
+            SigIconButton.compact(
                 systemName: "xmark",
                 tint: SigTheme.textMuted,
                 help: "Close",
@@ -203,7 +213,7 @@ struct TranslationResultView: View {
                 .lineLimit(3)
                 .truncationMode(.tail)
             let isPlayingOriginal = viewModel.isSpeaking && viewModel.currentSpeakingText == original
-            ResultIconButton(
+            SigIconButton.compact(
                 systemName: isPlayingOriginal ? "speaker.wave.3.fill" : "speaker.wave.2",
                 tint: isPlayingOriginal ? SigTheme.accent : SigTheme.textMuted,
                 help: isPlayingOriginal ? "Stop" : "Speak original",
@@ -224,7 +234,7 @@ struct TranslationResultView: View {
                 .textSelection(.enabled)
             VStack(spacing: 3) {
                 let isPlayingTranslation = viewModel.isSpeaking && viewModel.currentSpeakingText == translated
-                ResultIconButton(
+                SigIconButton.compact(
                     systemName: isPlayingTranslation ? "speaker.wave.3.fill" : "speaker.wave.2",
                     tint: isPlayingTranslation ? SigTheme.accent : SigTheme.textMuted,
                     help: isPlayingTranslation ? "Stop" : "Speak translation",
@@ -232,7 +242,7 @@ struct TranslationResultView: View {
                         viewModel.speak(text: translated, voiceCode: Self.voiceCode(for: targetLanguage))
                     }
                 )
-                ResultIconButton(
+                SigIconButton.compact(
                     systemName: isCopied ? "checkmark" : "doc.on.doc",
                     tint: isCopied ? SigTheme.success : SigTheme.textMuted,
                     help: isCopied ? "Copied" : "Copy",
@@ -260,32 +270,6 @@ struct TranslationResultView: View {
             guard !Task.isCancelled else { return }
             isCopied = false
         }
-    }
-}
-
-// MARK: - Shared button
-
-private struct ResultIconButton: View {
-    let systemName: String
-    let tint: Color
-    let help: String
-    let action: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(tint)
-                .frame(width: 22, height: 22)
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(isHovered ? SigTheme.chipBg.opacity(0.6) : .clear)
-                )
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .help(help)
     }
 }
 
