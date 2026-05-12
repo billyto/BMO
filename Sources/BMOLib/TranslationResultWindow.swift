@@ -122,6 +122,7 @@ struct TranslationResultView: View {
 
     @StateObject private var viewModel = TranslationResultViewModel()
     @State private var isCopied = false
+    @State private var copyResetTask: Task<Void, Never>?
 
     private var sourceLanguage: Language? { detectedSource }
     private var targetLanguage: Language? {
@@ -251,8 +252,12 @@ struct TranslationResultView: View {
     private func performCopy() {
         onCopy()
         isCopied = true
-        Task { @MainActor in
+        // Cancel any in-flight reset so a quick second click doesn't have the
+        // first task's 1.8s timer prematurely clear the second flash.
+        copyResetTask?.cancel()
+        copyResetTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_800_000_000)
+            guard !Task.isCancelled else { return }
             isCopied = false
         }
     }
