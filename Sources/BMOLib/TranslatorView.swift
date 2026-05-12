@@ -11,7 +11,11 @@ enum ActiveView: Equatable {
 struct TranslatorView: View {
     @StateObject private var viewModel: TranslatorViewModel
 
-    init(translationService: TranslationService) {
+    /// translationService is optional so the app can launch with a missing or
+    /// invalid DEEPL_API_KEY — the Settings DeepL badge surfaces the state and
+    /// translate() reports a clear error rather than the app terminating at
+    /// launch.
+    init(translationService: TranslationService?) {
         _viewModel = StateObject(wrappedValue: TranslatorViewModel(
             translationService: translationService
         ))
@@ -66,7 +70,7 @@ private struct MainView: View {
                 }
             VStack(spacing: 4) {
                 TranslateButton(
-                    action: { Task { await viewModel.translate() } },
+                    action: viewModel.startTranslation,
                     isLoading: viewModel.isLoading,
                     disabled: viewModel.isInputBlank || viewModel.isLoading
                 )
@@ -441,7 +445,11 @@ private struct FooterRow: View {
                 withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .history }
             }
             Spacer()
-            FooterButton(systemName: "gearshape", help: "Settings", isActive: false) {
+            FooterButton(
+                systemName: "gearshape",
+                help: "Settings",
+                isActive: viewModel.activeView == .settings
+            ) {
                 withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .settings }
             }
             FooterButton(systemName: "power", help: "Quit", isActive: false) {
@@ -559,10 +567,14 @@ class TranslatorViewModel: ObservableObject {
     @Published var isCopied: Bool = false
     @Published var activeView: ActiveView = .main
 
-    private let translationService: TranslationService
+    private let translationService: TranslationService?
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: SpeechDelegate?
+    /// Wraps the 1s debounce sleep that schedules an auto-translate.
     private var autoTranslateTask: Task<Void, Never>?
+    /// The in-flight translation request. Each new translate cancels this so
+    /// late-arriving stale results can't overwrite the latest translation.
+    private var currentTranslateTask: Task<Void, Never>?
     private var copyResetTask: Task<Void, Never>?
 
     /// True when input is empty or only whitespace/newlines — used to disable
@@ -578,7 +590,7 @@ class TranslatorViewModel: ObservableObject {
         inputText = String(text.prefix(Self.inputCharLimit))
     }
 
-    init(translationService: TranslationService) {
+    init(translationService: TranslationService?) {
         self.translationService = translationService
         speechDelegate = SpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
@@ -638,6 +650,8 @@ class TranslatorViewModel: ObservableObject {
     func clear() {
         autoTranslateTask?.cancel()
         autoTranslateTask = nil
+        currentTranslateTask?.cancel()
+        currentTranslateTask = nil
         copyResetTask?.cancel()
         copyResetTask = nil
 
@@ -645,6 +659,9 @@ class TranslatorViewModel: ObservableObject {
         translatedText = ""
         errorMessage = nil
         isCopied = false
+        // A clear() during an in-flight translate would otherwise leave the
+        // spinner running forever (the cancelled task no-ops its UI write).
+        isLoading = false
 
         // Stop any ongoing speech
         if speechSynthesizer.isSpeaking {
@@ -654,38 +671,16 @@ class TranslatorViewModel: ObservableObject {
         }
     }
 
-    func translate() async {
-        guard !isInputBlank else { return }
-
-        // Manual translate cancels any pending auto-translate so we don't
-        // double-fire against the same input. Cancel-then-nil is safe here
-        // because when translate() is called from within the auto-translate
-        // task itself, scheduleAutoTranslateIfNeeded has already nil-ed the
-        // reference (see the comment there) — so this is a no-op in that
-        // path and won't trigger self-cancellation of the URLSession await.
+    /// Start a new translation. Cancels any pending auto-translate and any
+    /// in-flight translation so an older slow response can't overwrite the
+    /// latest result.
+    func startTranslation() {
         autoTranslateTask?.cancel()
         autoTranslateTask = nil
-
-        isLoading = true
-        errorMessage = nil
-        translatedText = ""
-
-        // Snapshot the inputs in case the user edits while the request is in flight.
-        let source = inputText
-        let from = sourceLanguage
-        let to = targetLanguage
-
-        do {
-            let result = try await translationService.translate(text: source, from: from, to: to)
-            translatedText = result
-            AppSettings.shared.recordTranslation(source: source, translation: result, from: from, to: to)
-        } catch let error as TranslationError {
-            errorMessage = errorMessage(for: error)
-        } catch {
-            errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+        currentTranslateTask?.cancel()
+        currentTranslateTask = Task { @MainActor [weak self] in
+            await self?.performTranslation()
         }
-
-        isLoading = false
     }
 
     /// Schedule a translate after a 1s pause in typing. No-op when auto-translate
@@ -699,13 +694,50 @@ class TranslatorViewModel: ObservableObject {
         autoTranslateTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard let self, !Task.isCancelled else { return }
-            // Release the self-reference BEFORE calling translate(). Otherwise
-            // translate()'s autoTranslateTask?.cancel() cancels the very task
-            // we're inside, and Swift's cancellation propagation makes the
-            // upcoming URLSession await throw .cancelled — auto-translate would
-            // silently fail with a "network error" message.
             self.autoTranslateTask = nil
-            await self.translate()
+            // startTranslation owns its own task (currentTranslateTask), so
+            // calling it from here doesn't self-cancel — autoTranslateTask
+            // and currentTranslateTask are separate references.
+            self.startTranslation()
+        }
+    }
+
+    private func performTranslation() async {
+        guard !isInputBlank else { return }
+        guard let translationService else {
+            // No API key at launch — keep the UI quiet beyond a single hint;
+            // the Settings DeepL badge is the canonical surface for this state.
+            errorMessage = "DEEPL_API_KEY is not set. Open Settings to check the status."
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        translatedText = ""
+
+        // Snapshot the inputs so a mid-flight edit doesn't poison the request
+        // (and so the recordTranslation call uses what was actually translated).
+        let source = inputText
+        let from = sourceLanguage
+        let to = targetLanguage
+
+        do {
+            let result = try await translationService.translate(text: source, from: from, to: to)
+            // A newer call may have cancelled us between the await suspending
+            // and resuming — apply the result only if we're still current.
+            if Task.isCancelled { return }
+            translatedText = result
+            AppSettings.shared.recordTranslation(source: source, translation: result, from: from, to: to)
+        } catch let error as TranslationError {
+            if Task.isCancelled { return }
+            errorMessage = errorMessage(for: error)
+        } catch {
+            if Task.isCancelled { return }
+            errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+        }
+
+        if !Task.isCancelled {
+            isLoading = false
         }
     }
 
@@ -714,6 +746,10 @@ class TranslatorViewModel: ObservableObject {
     func restore(from item: HistoryItem) {
         autoTranslateTask?.cancel()
         autoTranslateTask = nil
+        // Cancel any in-flight translation too; its result would land on top
+        // of our restored values and look like a glitch.
+        currentTranslateTask?.cancel()
+        currentTranslateTask = nil
         // History items can hold source text that's longer than the current
         // input limit (e.g. limit lowered after the item was recorded), so go
         // through setInput rather than assigning directly.
@@ -723,6 +759,7 @@ class TranslatorViewModel: ObservableObject {
         targetLanguage = item.targetLang
         errorMessage = nil
         isCopied = false
+        isLoading = false
     }
 
     /// Copy the current translation to the clipboard and flash `isCopied = true`
