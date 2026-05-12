@@ -38,8 +38,15 @@ class TranslationResultWindow: NSObject {
 
         // Size to fit the SwiftUI content rather than guessing a fixed height —
         // translation length varies a lot and the new card layout grows
-        // vertically with it.
-        let fittingSize = hostingController.view.fittingSize
+        // vertically with it. Using sizeThatFits(in:) forces SwiftUI to
+        // measure synchronously against the width constraint; the bare
+        // `.view.fittingSize` returns ~zero before the controller's view has
+        // been attached, which would collapse our positioning math and let
+        // the later auto-resize push the window into the bottom-right corner.
+        let fittingSize = hostingController.sizeThatFits(in: NSSize(
+            width: SigSpacing.popoverWidth,
+            height: .greatestFiniteMagnitude
+        ))
         win.setContentSize(fittingSize)
 
         // Position near mouse cursor — pick the screen the cursor is actually on
