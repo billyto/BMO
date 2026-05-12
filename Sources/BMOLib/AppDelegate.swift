@@ -4,9 +4,9 @@ import SwiftUI
 public class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
-    private var translationService: TranslationService!
+    private var translationService: TranslationService?
     private var serviceProvider: ServiceProvider!
-    private var hotkeyMonitor: HotkeyMonitor!
+    private var hotkeyMonitor: HotkeyMonitor?
 
     public override init() {
         super.init()
@@ -20,21 +20,30 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Initialize translation service
-        guard let apiKey = ProcessInfo.processInfo.environment["DEEPL_API_KEY"], !apiKey.isEmpty else {
-            showAPIKeyAlert()
-            return
+        // Try to bring up the translation service. If DEEPL_API_KEY is missing
+        // or invalid we keep going with a nil service — APIKeyMonitor signals
+        // the state via the Settings DeepL badge (red = missing, yellow =
+        // invalid) and translate() returns a clear error rather than the app
+        // exiting at launch.
+        if let apiKey = ProcessInfo.processInfo.environment["DEEPL_API_KEY"], !apiKey.isEmpty {
+            do {
+                let networkClient = URLSessionNetworkClient()
+                translationService = try TranslationService(apiKey: apiKey, networkClient: networkClient)
+            } catch {
+                NSLog("Failed to initialize translation service: \(error)")
+            }
+        } else {
+            NSLog("DEEPL_API_KEY is not set — app will launch in unconfigured state")
         }
 
-        do {
-            let networkClient = URLSessionNetworkClient()
-            translationService = try TranslationService(apiKey: apiKey, networkClient: networkClient)
-        } catch {
-            showAPIKeyAlert()
-            return
-        }
+        // Kick off the live key-status check so the Settings indicator can
+        // tell the user whether DeepL is actually accepting the key.
+        APIKeyMonitor.shared.verify()
 
-        // Initialize service provider for macOS Services (if enabled)
+        // Initialize service provider for macOS Services (if enabled). The
+        // provider reads DEEPL_API_KEY itself and handles a missing key by
+        // surfacing an error notification — no need to gate it on
+        // translationService.
         if AppSettings.shared.servicesEnabled {
             serviceProvider = ServiceProvider()
             NSApp.servicesProvider = serviceProvider
@@ -43,9 +52,13 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("macOS Services disabled")
         }
 
-        // Initialize global hotkey monitor
-        hotkeyMonitor = HotkeyMonitor(translationService: translationService)
-        hotkeyMonitor.start()
+        // Global hotkey only makes sense with a working service; otherwise the
+        // event tap would intercept the combo but produce no translation.
+        if let translationService {
+            let monitor = HotkeyMonitor(translationService: translationService)
+            monitor.start()
+            hotkeyMonitor = monitor
+        }
 
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -61,9 +74,11 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
         }
 
-        // Create popover
+        // Create popover — passes the (possibly nil) translation service through
+        // so the popover renders even without a key. The DeepL badge in
+        // Settings shows red and translate() reports a clear error.
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 420, height: 380)
+        popover.contentSize = NSSize(width: 360, height: 400)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
             rootView: TranslatorView(
@@ -120,14 +135,4 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @MainActor
-    private func showAPIKeyAlert() {
-        let alert = NSAlert()
-        alert.messageText = "API Key Missing"
-        alert.informativeText = "Please set the DEEPL_API_KEY environment variable with your DeepL API key."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-        NSApp.terminate(nil)
-    }
 }

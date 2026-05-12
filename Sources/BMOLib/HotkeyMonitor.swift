@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Carbon
+import Combine
 
 @MainActor
 class HotkeyMonitor: NSObject, ObservableObject {
@@ -8,10 +9,28 @@ class HotkeyMonitor: NSObject, ObservableObject {
     private var runLoopSource: CFRunLoopSource?
     private var translationService: TranslationService?
     private var resultWindow: TranslationResultWindow?
+    private var hotkeyEnabledObserver: AnyCancellable?
 
     init(translationService: TranslationService) {
         self.translationService = translationService
         super.init()
+        observeHotkeyEnabled()
+    }
+
+    /// Toggle the live event tap in response to AppSettings changes. Without
+    /// this, disabling the hotkey from Settings leaves the CGEvent tap installed
+    /// and intercepting every keyDown — `handleEvent` just no-ops them, which
+    /// works functionally but wastes CPU and confuses anyone reading the code.
+    private func observeHotkeyEnabled() {
+        hotkeyEnabledObserver = AppSettings.shared.$hotkeyEnabled
+            .dropFirst()  // skip the initial value — AppDelegate calls start() at launch
+            .sink { [weak self] enabled in
+                if enabled {
+                    self?.start()
+                } else {
+                    self?.stop()
+                }
+            }
     }
 
     func start() {

@@ -85,6 +85,7 @@ struct Hotkey: Codable, Equatable {
 @MainActor
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
+    static let historyMaxCount = 20
 
     private let defaults = UserDefaults.standard
 
@@ -94,6 +95,9 @@ class AppSettings: ObservableObject {
     private let hotkeyEnabledKey = "hotkeyEnabled"
     private let hotkeyDataKey = "hotkeyData"
     private let servicesEnabledKey = "servicesEnabled"
+    private let autoTranslateEnabledKey = "autoTranslateEnabled"
+    private let historyEnabledKey = "historyEnabled"
+    private let historyKey = "translationHistory"
 
     // Published properties
     @Published var autoDismissEnabled: Bool {
@@ -132,6 +136,26 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var autoTranslateEnabled: Bool {
+        didSet {
+            defaults.set(autoTranslateEnabled, forKey: autoTranslateEnabledKey)
+        }
+    }
+
+    @Published var historyEnabled: Bool {
+        didSet {
+            defaults.set(historyEnabled, forKey: historyEnabledKey)
+        }
+    }
+
+    @Published var translationHistory: [HistoryItem] {
+        didSet {
+            if let data = try? JSONEncoder().encode(translationHistory) {
+                defaults.set(data, forKey: historyKey)
+            }
+        }
+    }
+
     private init() {
         // Load saved values or use defaults
         self.autoDismissEnabled = defaults.object(forKey: autoDismissEnabledKey) as? Bool ?? true
@@ -147,10 +171,50 @@ class AppSettings: ObservableObject {
             // Default: Command + Shift + T
             self.hotkey = Hotkey(keyCode: 17, modifiers: UInt32(cmdKey | shiftKey))
         }
+
+        // New v1.6 settings — default off so existing users opt in via the redesigned
+        // Settings UI rather than getting behavior changes silently.
+        self.autoTranslateEnabled = defaults.object(forKey: autoTranslateEnabledKey) as? Bool ?? false
+        self.historyEnabled = defaults.object(forKey: historyEnabledKey) as? Bool ?? false
+
+        if let data = defaults.data(forKey: historyKey),
+           let decoded = try? JSONDecoder().decode([HistoryItem].self, from: data) {
+            self.translationHistory = decoded
+        } else {
+            self.translationHistory = []
+        }
     }
 
     // Computed property for actual timeout to use
     var effectiveTimeout: Double {
         return autoDismissEnabled ? autoDismissDuration : 0
+    }
+
+    // MARK: - History helpers
+
+    /// Insert a new translation at the head, FIFO-trim to `historyMaxCount`.
+    /// No-op when `historyEnabled == false` so disabling the toggle prevents recording.
+    func recordTranslation(source: String, translation: String, from: Language, to: Language) {
+        guard historyEnabled else { return }
+        let item = HistoryItem(
+            sourceText: source,
+            translatedText: translation,
+            sourceLang: from,
+            targetLang: to
+        )
+        var updated = translationHistory
+        updated.insert(item, at: 0)
+        if updated.count > Self.historyMaxCount {
+            updated = Array(updated.prefix(Self.historyMaxCount))
+        }
+        translationHistory = updated
+    }
+
+    func clearHistory() {
+        translationHistory = []
+    }
+
+    func deleteHistoryItem(id: UUID) {
+        translationHistory.removeAll { $0.id == id }
     }
 }
