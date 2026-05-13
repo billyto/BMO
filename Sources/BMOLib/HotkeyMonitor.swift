@@ -183,32 +183,33 @@ class HotkeyMonitor: NSObject, ObservableObject {
             return
         }
 
-        // Perform translation
-        Task { @MainActor in
-            do {
-                let result = try await translationService.autoTranslate(text: selectedText)
-                NSLog("Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
-                showTranslationResult(
-                    original: selectedText,
-                    translated: result.translated,
-                    detectedSource: result.detectedSource
+        // Perform translation inline (not in a nested Task) so the outer
+        // isHandling guard brackets the full operation — pasteboard *and*
+        // translation. A nested Task would let `defer` fire before the
+        // translation completes, dropping the guard back to false too early.
+        do {
+            let result = try await translationService.autoTranslate(text: selectedText)
+            NSLog("Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
+            showTranslationResult(
+                original: selectedText,
+                translated: result.translated,
+                detectedSource: result.detectedSource
+            )
+            // Feed History so hotkey-triggered translations show up alongside
+            // popover ones. Skip when detection failed (the target Language
+            // isn't meaningful for non-DA/EN sources in the current enum).
+            if let from = result.detectedSource {
+                let to: Language = (from == .english) ? .danish : .english
+                AppSettings.shared.recordTranslation(
+                    source: selectedText,
+                    translation: result.translated,
+                    from: from,
+                    to: to
                 )
-                // Feed History so hotkey-triggered translations show up alongside
-                // popover ones. Skip when detection failed (the target Language
-                // isn't meaningful for non-DA/EN sources in the current enum).
-                if let from = result.detectedSource {
-                    let to: Language = (from == .english) ? .danish : .english
-                    AppSettings.shared.recordTranslation(
-                        source: selectedText,
-                        translation: result.translated,
-                        from: from,
-                        to: to
-                    )
-                }
-            } catch {
-                NSLog("Translation failed: \(error)")
-                showNotification(title: "BMO Translation Error", message: "Translation failed: \(error.localizedDescription)")
             }
+        } catch {
+            NSLog("Translation failed: \(error)")
+            showNotification(title: "BMO Translation Error", message: "Translation failed: \(error.localizedDescription)")
         }
     }
 
