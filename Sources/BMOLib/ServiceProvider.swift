@@ -67,6 +67,18 @@ import AppKit
                     translated: result.translated,
                     detectedSource: result.detectedSource
                 )
+                // Feed History so Services-menu translations show up alongside
+                // popover ones. Skip when detection failed (the target Language
+                // isn't meaningful for non-DA/EN sources in the current enum).
+                if let from = result.detectedSource {
+                    let to: Language = (from == .english) ? .danish : .english
+                    AppSettings.shared.recordTranslation(
+                        source: text,
+                        translation: result.translated,
+                        from: from,
+                        to: to
+                    )
+                }
             } catch {
                 NSLog("BMO Service: Translation failed: \(error)")
                 self.showError("Translation failed: \(error.localizedDescription)")
