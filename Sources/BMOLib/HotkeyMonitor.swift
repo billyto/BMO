@@ -10,6 +10,12 @@ class HotkeyMonitor: NSObject, ObservableObject {
     private var translationService: TranslationService?
     private var resultWindow: TranslationResultWindow?
     private var hotkeyEnabledObserver: AnyCancellable?
+    /// Set while a hotkey-triggered selection+translate is in flight. Without this
+    /// guard, rapid presses (key auto-repeat, accidental double-press) can
+    /// interleave inside getSelectedText's 100ms sleep — two snapshot/restore
+    /// pairs racing on the pasteboard would silently destroy the user's
+    /// clipboard and translate the wrong text.
+    private var isHandling = false
 
     init(translationService: TranslationService) {
         self.translationService = translationService
@@ -38,6 +44,12 @@ class HotkeyMonitor: NSObject, ObservableObject {
 
         // Dispatch async to avoid blocking during permission check
         Task { @MainActor in
+            // Re-check after the async hop — the user may have toggled the
+            // hotkey off in the dispatch gap. Without this, stop() runs while
+            // eventTap is still nil (no-op) and the deferred branch below would
+            // install the tap anyway, contradicting the user's setting.
+            guard AppSettings.shared.hotkeyEnabled else { return }
+
             // Check if we have accessibility permissions
             // Pass false to avoid showing system prompt (use the string value directly to avoid concurrency issues)
             let options = ["AXTrustedCheckOptionPrompt" as CFString: false] as CFDictionary
@@ -132,8 +144,13 @@ class HotkeyMonitor: NSObject, ObservableObject {
         // Check if this matches our hotkey
         if keyCode == hotkey.keyCode && modifiers == hotkey.modifiers {
             NSLog("Hotkey matched! KeyCode: \(keyCode), Modifiers: \(modifiers)")
+            // Drop overlapping presses while a translation is in flight — the
+            // pasteboard dance in getSelectedText cannot safely interleave.
+            guard !isHandling else { return nil }
+            isHandling = true
             // Trigger translation
             Task { @MainActor in
+                defer { self.isHandling = false }
                 await self.handleHotkeyPressed()
             }
             // Consume the event (don't pass it through)
@@ -166,20 +183,33 @@ class HotkeyMonitor: NSObject, ObservableObject {
             return
         }
 
-        // Perform translation
-        Task { @MainActor in
-            do {
-                let result = try await translationService.autoTranslate(text: selectedText)
-                NSLog("Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
-                showTranslationResult(
-                    original: selectedText,
-                    translated: result.translated,
-                    detectedSource: result.detectedSource
+        // Perform translation inline (not in a nested Task) so the outer
+        // isHandling guard brackets the full operation — pasteboard *and*
+        // translation. A nested Task would let `defer` fire before the
+        // translation completes, dropping the guard back to false too early.
+        do {
+            let result = try await translationService.autoTranslate(text: selectedText)
+            NSLog("Translation successful (detected: \(result.detectedSource?.rawValue ?? "unknown"))")
+            showTranslationResult(
+                original: selectedText,
+                translated: result.translated,
+                detectedSource: result.detectedSource
+            )
+            // Feed History so hotkey-triggered translations show up alongside
+            // popover ones. Skip when detection failed (the target Language
+            // isn't meaningful for non-DA/EN sources in the current enum).
+            if let from = result.detectedSource {
+                let to: Language = (from == .english) ? .danish : .english
+                AppSettings.shared.recordTranslation(
+                    source: selectedText,
+                    translation: result.translated,
+                    from: from,
+                    to: to
                 )
-            } catch {
-                NSLog("Translation failed: \(error)")
-                showNotification(title: "BMO Translation Error", message: "Translation failed: \(error.localizedDescription)")
             }
+        } catch {
+            NSLog("Translation failed: \(error)")
+            showNotification(title: "BMO Translation Error", message: "Translation failed: \(error.localizedDescription)")
         }
     }
 

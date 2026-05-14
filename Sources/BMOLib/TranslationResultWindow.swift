@@ -307,11 +307,16 @@ class TranslationResultViewModel: ObservableObject {
     /// correct language per side; no need for the old "Danish indicator words"
     /// heuristic that misfired on short English text containing 'i' / 'a').
     func speak(text: String, voiceCode: String) {
+        // Same-button tap = stop; different-button tap (other text) = stop the
+        // current utterance and start the requested one. Without the text check,
+        // clicking "Speak translation" while the original is playing would just
+        // stop playback and the user would have to click a second time.
         if speechSynthesizer.isSpeaking {
+            let wasSameText = (text == currentSpeakingText)
             speechSynthesizer.stopSpeaking(at: .immediate)
             isSpeaking = false
             currentSpeakingText = ""
-            return
+            if wasSameText { return }
         }
 
         let utterance = AVSpeechUtterance(string: text)

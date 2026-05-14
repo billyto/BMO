@@ -195,7 +195,9 @@ private struct InputPanel: View {
                     // Padding here is calibrated so the placeholder lines up with
                     // the first glyph of the underlying NSTextView (TextEditor's
                     // outer padding + NSTextView's internal text container inset).
-                    Text("Type or paste Danish text…")
+                    Text(viewModel.sourceLanguage == .danish
+                         ? "Type or paste Danish text…"
+                         : "Type or paste English text…")
                         .font(.system(size: 14))
                         .foregroundColor(SigTheme.textMuted.opacity(0.7))
                         .padding(.horizontal, 13)
@@ -609,6 +611,14 @@ class TranslatorViewModel: ObservableObject {
     }
 
     func swapLanguages() {
+        // Cancel any in-flight translation so its (now wrong-direction) result
+        // can't land on top of the flipped chips — matches clear() / restore().
+        autoTranslateTask?.cancel()
+        autoTranslateTask = nil
+        currentTranslateTask?.cancel()
+        currentTranslateTask = nil
+        isLoading = false
+
         let temp = sourceLanguage
         sourceLanguage = targetLanguage
         targetLanguage = temp

@@ -43,9 +43,10 @@ final class APIKeyMonitor: ObservableObject {
     }
 
     private static func callUsage(key: String) async -> Status {
-        // DeepL free keys end in ":fx" and live at api-free; pro keys use api.
-        let host = key.hasSuffix(":fx") ? "api-free.deepl.com" : "api.deepl.com"
-        guard let url = URL(string: "https://\(host)/v2/usage") else {
+        // Sig only targets the free tier; TranslationService is pinned to
+        // api-free.deepl.com, so verify against the same host to keep the
+        // badge honest about whether translation will actually work.
+        guard let url = URL(string: "https://api-free.deepl.com/v2/usage") else {
             return .unreachable
         }
 
