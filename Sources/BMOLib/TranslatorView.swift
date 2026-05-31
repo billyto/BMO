@@ -169,9 +169,10 @@ private struct SwapButton: View {
                 .scaleEffect(isHovered ? 1.08 : 1.0)
         }
         .buttonStyle(.plain)
+        .keyboardShortcut("s", modifiers: .command)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.15), value: isHovered)
-        .help("Swap languages")
+        .help("Swap languages (⌘S)")
     }
 }
 
