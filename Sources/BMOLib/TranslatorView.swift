@@ -18,8 +18,14 @@ struct TranslatorView: View {
     /// invalid DEEPL_API_KEY — the Settings DeepL badge surfaces the state and
     /// translate() reports a clear error rather than the app terminating at
     /// launch.
+    /// Only used by #Preview (AppDelegate goes through init(viewModel:)) — so
+    /// the phonetics side is always the mock, never a real espeak-ng subprocess
+    /// call from inside Xcode Canvas.
     init(translationService: TranslationService?) {
-        self.viewModel = TranslatorViewModel(translationService: translationService)
+        self.viewModel = TranslatorViewModel(
+            translationService: translationService,
+            phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())
+        )
     }
 
     /// Used by AppDelegate, which needs to own the view model itself so it can
