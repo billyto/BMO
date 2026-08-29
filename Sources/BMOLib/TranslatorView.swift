@@ -21,6 +21,12 @@ struct TranslatorView: View {
         ))
     }
 
+    /// Used by AppDelegate, which needs to own the view model itself so it can
+    /// observe `isPinned` and drive `NSPopover.behavior` from it.
+    init(viewModel: TranslatorViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
+
     private static let viewSwitchAnimation: Animation = .easeInOut(duration: 0.22)
 
     var body: some View {
@@ -449,6 +455,13 @@ private struct FooterRow: View {
             }
             Spacer()
             FooterButton(
+                systemName: viewModel.isPinned ? "pin.fill" : "pin",
+                help: viewModel.isPinned ? "Unpin (auto-close on)" : "Pin (keep open while you work)",
+                isActive: viewModel.isPinned
+            ) {
+                viewModel.isPinned.toggle()
+            }
+            FooterButton(
                 systemName: "gearshape",
                 help: "Settings",
                 isActive: viewModel.activeView == .settings
@@ -534,6 +547,14 @@ class TranslatorViewModel: ObservableObject {
     /// swapLanguages, restore) must go through `setInput(_:)` so the limit can't
     /// be bypassed and leave the char counter wedged above the cap.
     static let inputCharLimit = 500
+
+    /// Session-only: when true, the popover stays open even if it loses focus
+    /// or the user clicks outside (AppDelegate flips NSPopover.behavior to
+    /// .applicationDefined in response). Lets a long working session — e.g.
+    /// tabbing to another app to reference text — survive without the popover
+    /// vanishing. Always reset to false when the popover is explicitly closed
+    /// via the menu bar icon, so each new open starts in normal auto-dismiss mode.
+    @Published var isPinned: Bool = false
 
     @Published var inputText: String = ""
     @Published var translatedText: String = ""
