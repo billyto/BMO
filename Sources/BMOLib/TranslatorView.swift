@@ -9,16 +9,23 @@ enum ActiveView: Equatable {
 }
 
 struct TranslatorView: View {
-    @StateObject private var viewModel: TranslatorViewModel
+    // @ObservedObject, not @StateObject: AppDelegate owns this view model so
+    // it can observe `isPinned` and drive `NSPopover.behavior` from it — the
+    // view doesn't own the object's lifecycle, it just observes.
+    @ObservedObject private var viewModel: TranslatorViewModel
 
     /// translationService is optional so the app can launch with a missing or
     /// invalid DEEPL_API_KEY — the Settings DeepL badge surfaces the state and
     /// translate() reports a clear error rather than the app terminating at
     /// launch.
     init(translationService: TranslationService?) {
-        _viewModel = StateObject(wrappedValue: TranslatorViewModel(
-            translationService: translationService
-        ))
+        self.viewModel = TranslatorViewModel(translationService: translationService)
+    }
+
+    /// Used by AppDelegate, which needs to own the view model itself so it can
+    /// observe `isPinned` and drive `NSPopover.behavior` from it.
+    init(viewModel: TranslatorViewModel) {
+        self.viewModel = viewModel
     }
 
     private static let viewSwitchAnimation: Animation = .easeInOut(duration: 0.22)
@@ -449,6 +456,13 @@ private struct FooterRow: View {
             }
             Spacer()
             FooterButton(
+                systemName: viewModel.isPinned ? "pin.fill" : "pin",
+                help: viewModel.isPinned ? "Unpin (auto-close on)" : "Pin (keep open while you work)",
+                isActive: viewModel.isPinned
+            ) {
+                viewModel.isPinned.toggle()
+            }
+            FooterButton(
                 systemName: "gearshape",
                 help: "Settings",
                 isActive: viewModel.activeView == .settings
@@ -534,6 +548,14 @@ class TranslatorViewModel: ObservableObject {
     /// swapLanguages, restore) must go through `setInput(_:)` so the limit can't
     /// be bypassed and leave the char counter wedged above the cap.
     static let inputCharLimit = 500
+
+    /// Session-only: when true, the popover stays open even if it loses focus
+    /// or the user clicks outside (AppDelegate flips NSPopover.behavior to
+    /// .applicationDefined in response). Lets a long working session — e.g.
+    /// tabbing to another app to reference text — survive without the popover
+    /// vanishing. Always reset to false when the popover is explicitly closed
+    /// via the menu bar icon, so each new open starts in normal auto-dismiss mode.
+    @Published var isPinned: Bool = false
 
     @Published var inputText: String = ""
     @Published var translatedText: String = ""

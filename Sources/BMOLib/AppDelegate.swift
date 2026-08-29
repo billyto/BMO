@@ -1,12 +1,15 @@
 import AppKit
 import SwiftUI
+import Combine
 
 public class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
+    private var translatorViewModel: TranslatorViewModel!
     private var translationService: TranslationService?
     private var serviceProvider: ServiceProvider!
     private var hotkeyMonitor: HotkeyMonitor?
+    private var cancellables = Set<AnyCancellable>()
 
     public override init() {
         super.init()
@@ -77,20 +80,33 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         // Create popover — passes the (possibly nil) translation service through
         // so the popover renders even without a key. The DeepL badge in
         // Settings shows red and translate() reports a clear error.
+        translatorViewModel = TranslatorViewModel(translationService: translationService)
         popover = NSPopover()
         popover.contentSize = NSSize(width: 360, height: 400)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
-            rootView: TranslatorView(
-                translationService: translationService
-            )
+            rootView: TranslatorView(viewModel: translatorViewModel)
         )
+
+        // Pin toggle (footer icon) flips this to .applicationDefined, which
+        // disables NSPopover's automatic close-on-outside-click/resign-active
+        // entirely — the only way it closes is the explicit paths below.
+        translatorViewModel.$isPinned
+            .sink { [weak self] isPinned in
+                self?.popover.behavior = isPinned ? .applicationDefined : .transient
+            }
+            .store(in: &cancellables)
     }
 
     @MainActor
     @objc func togglePopover() {
         if let button = statusItem.button {
             if popover.isShown {
+                // Reset before closing (not after) so a pinned popover — which
+                // never auto-closes on its own — always comes back unpinned
+                // and auto-dismissing on the next open, matching the footer
+                // icon's default state.
+                translatorViewModel.isPinned = false
                 popover.performClose(nil)
             } else {
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
