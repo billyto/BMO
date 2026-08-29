@@ -166,6 +166,19 @@ The app now includes a system-wide translation service that appears in the macOS
 - Users can enable/disable in System Settings → Keyboard → Services
 - App must be in /Applications or ~/Applications for service to be discovered
 
+## Popover Pin (v1.7)
+
+The menu bar popover normally uses `NSPopover.behavior = .transient`, which auto-closes when it loses focus or the user clicks outside — disruptive during a long translation session (e.g. tabbing to another app to reference text). A footer pin toggle lets the user keep it open on demand.
+
+**TranslatorViewModel.isPinned** (Sources/BMOLib/TranslatorView.swift)
+- `@Published`, session-only — not persisted to `AppSettings`/`UserDefaults`
+- Toggled via the pin footer button (next to Settings) in `FooterRow`
+
+**AppDelegate**
+- Constructs `translatorViewModel` itself (rather than letting `TranslatorView` own it internally) so it can subscribe to `$isPinned` via Combine and flip `popover.behavior` between `.transient` (default) and `.applicationDefined` (pinned — disables NSPopover's automatic dismissal entirely)
+- `TranslatorView` takes this injected view model via `@ObservedObject`, not `@StateObject`, since AppDelegate — not the view — owns its lifecycle
+- `togglePopover()`'s manual-close path always resets `isPinned = false` before calling `performClose`, so every fresh open starts unpinned and auto-dismissing again
+
 ## Swift 6 Concurrency
 
 The codebase uses strict concurrency:
