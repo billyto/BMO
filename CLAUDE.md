@@ -179,7 +179,7 @@ The menu bar popover normally uses `NSPopover.behavior = .transient`, which auto
 - `TranslatorView` takes this injected view model via `@ObservedObject`, not `@StateObject`, since AppDelegate — not the view — owns its lifecycle
 - `togglePopover()`'s manual-close path always resets `isPinned = false` before calling `performClose`, so every fresh open starts unpinned and auto-dismissing again
 
-## Danish IPA Pronunciation (v1.8)
+## Danish IPA Pronunciation (v1.9)
 
 Optional IPA transcription (e.g. `/hɛjˀ/`) shown alongside whichever side of a translation is Danish — the input when translating DA→EN, the output when translating EN→DA. Computed once per completed translation, not live-as-you-type.
 

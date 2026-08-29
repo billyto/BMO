@@ -5,7 +5,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 ![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.7-green)
+![Version](https://img.shields.io/badge/version-1.9-green)
 
 ## Features
 
@@ -230,7 +230,7 @@ DEEPL_API_KEY=your-key ENABLE_INTEGRATION_TESTS=1 swift test
 Completed:
 - [x] System-wide translation service (v1.5) - Right-click context menu translation
 - [x] Popover pin toggle (v1.7) - Keep the popover open during long sessions instead of auto-dismissing on focus loss
-- [x] Danish IPA pronunciation guide (v1.8) - Optional, requires `espeak-ng` (see Requirements)
+- [x] Danish IPA pronunciation guide (v1.9) - Optional, requires `espeak-ng` (see Requirements)
 
 Future versions may include:
 
