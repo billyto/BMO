@@ -18,7 +18,8 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 - 🔊 Text-to-speech for Danish pronunciation
 - 🎯 Proper macOS app bundle for easy installation
 - 🖱️ System-wide translation service - right-click any selected text and translate via Services menu
-- 📌 **NEW:** Pin the popover open during long sessions - stays open even if it loses focus
+- 📌 Pin the popover open during long sessions - stays open even if it loses focus
+- 🗣️ **NEW:** Danish IPA pronunciation guide (e.g. `/hɛjˀ/`) shown alongside translations - optional, requires `espeak-ng`
 
 ## Screenshots
 
@@ -28,6 +29,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 
 - macOS 14.0 or later
 - DeepL API key (free tier available: 500,000 characters/month)
+- Optional: [espeak-ng](https://github.com/espeak-ng/espeak-ng) (`brew install espeak-ng`) for the Danish IPA pronunciation guide - not required otherwise; enable it in Settings once installed
 
 ## Installation
 
@@ -228,6 +230,7 @@ DEEPL_API_KEY=your-key ENABLE_INTEGRATION_TESTS=1 swift test
 Completed:
 - [x] System-wide translation service (v1.5) - Right-click context menu translation
 - [x] Popover pin toggle (v1.7) - Keep the popover open during long sessions instead of auto-dismissing on focus loss
+- [x] Danish IPA pronunciation guide (v1.8) - Optional, requires `espeak-ng` (see Requirements)
 
 Future versions may include:
 
@@ -235,7 +238,6 @@ Future versions may include:
 - [ ] Favorite translations
 - [ ] Dark mode support
 - [ ] Global hotkey to show popover
-- [ ] Pronunciation guide (IPA) - Partially implemented
 - [ ] Example sentences
 - [ ] More language pairs
 

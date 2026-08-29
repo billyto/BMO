@@ -186,6 +186,9 @@ struct TranslationResultView: View {
             copyResetTask?.cancel()
             copyResetTask = nil
         }
+        .task {
+            await viewModel.fetchDanishIPAIfNeeded(original: original, translated: translated, detectedSource: detectedSource)
+        }
     }
 
     private var header: some View {
@@ -212,57 +215,71 @@ struct TranslationResultView: View {
     }
 
     private var originalRow: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Text(original)
-                .font(.system(size: 12.5))
-                .foregroundColor(SigTheme.textMuted)
-                .lineSpacing(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
-                .lineLimit(3)
-                .truncationMode(.tail)
-            let isPlayingOriginal = viewModel.isSpeaking && viewModel.currentSpeakingText == original
-            SigIconButton.compact(
-                systemName: isPlayingOriginal ? "speaker.wave.3.fill" : "speaker.wave.2",
-                tint: isPlayingOriginal ? SigTheme.accent : SigTheme.textMuted,
-                help: isPlayingOriginal ? "Stop" : "Speak original",
-                action: {
-                    viewModel.speak(text: original, voiceCode: Self.voiceCode(for: sourceLanguage))
-                }
-            )
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .top, spacing: 6) {
+                Text(original)
+                    .font(.system(size: 12.5))
+                    .foregroundColor(SigTheme.textMuted)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                let isPlayingOriginal = viewModel.isSpeaking && viewModel.currentSpeakingText == original
+                SigIconButton.compact(
+                    systemName: isPlayingOriginal ? "speaker.wave.3.fill" : "speaker.wave.2",
+                    tint: isPlayingOriginal ? SigTheme.accent : SigTheme.textMuted,
+                    help: isPlayingOriginal ? "Stop" : "Speak original",
+                    action: {
+                        viewModel.speak(text: original, voiceCode: Self.voiceCode(for: sourceLanguage))
+                    }
+                )
+            }
+            if sourceLanguage == .danish, let ipa = viewModel.danishIPA {
+                Text(ipa)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundColor(SigTheme.textMuted)
+            }
         }
     }
 
     private var translationCard: some View {
-        HStack(alignment: .top, spacing: 8) {
-            // Cap the visible height so a very long translation can't make the
-            // window taller than the screen (would otherwise leave the top
-            // edge off-screen after the bottom clamp in setupWindow).
-            ScrollView(.vertical) {
-                Text(translated)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(SigTheme.textPrimary)
-                    .lineSpacing(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+                // Cap the visible height so a very long translation can't make the
+                // window taller than the screen (would otherwise leave the top
+                // edge off-screen after the bottom clamp in setupWindow).
+                ScrollView(.vertical) {
+                    Text(translated)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(SigTheme.textPrimary)
+                        .lineSpacing(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 320)
+                VStack(spacing: 3) {
+                    let isPlayingTranslation = viewModel.isSpeaking && viewModel.currentSpeakingText == translated
+                    SigIconButton.compact(
+                        systemName: isPlayingTranslation ? "speaker.wave.3.fill" : "speaker.wave.2",
+                        tint: isPlayingTranslation ? SigTheme.accent : SigTheme.textMuted,
+                        help: isPlayingTranslation ? "Stop" : "Speak translation",
+                        action: {
+                            viewModel.speak(text: translated, voiceCode: Self.voiceCode(for: targetLanguage))
+                        }
+                    )
+                    SigIconButton.compact(
+                        systemName: isCopied ? "checkmark" : "doc.on.doc",
+                        tint: isCopied ? SigTheme.success : SigTheme.textMuted,
+                        help: isCopied ? "Copied" : "Copy",
+                        action: performCopy
+                    )
+                }
             }
-            .frame(maxHeight: 320)
-            VStack(spacing: 3) {
-                let isPlayingTranslation = viewModel.isSpeaking && viewModel.currentSpeakingText == translated
-                SigIconButton.compact(
-                    systemName: isPlayingTranslation ? "speaker.wave.3.fill" : "speaker.wave.2",
-                    tint: isPlayingTranslation ? SigTheme.accent : SigTheme.textMuted,
-                    help: isPlayingTranslation ? "Stop" : "Speak translation",
-                    action: {
-                        viewModel.speak(text: translated, voiceCode: Self.voiceCode(for: targetLanguage))
-                    }
-                )
-                SigIconButton.compact(
-                    systemName: isCopied ? "checkmark" : "doc.on.doc",
-                    tint: isCopied ? SigTheme.success : SigTheme.textMuted,
-                    help: isCopied ? "Copied" : "Copy",
-                    action: performCopy
-                )
+            if targetLanguage == .danish, let ipa = viewModel.danishIPA {
+                Text(ipa)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundColor(SigTheme.textMuted)
             }
         }
         .padding(12)
@@ -294,13 +311,32 @@ struct TranslationResultView: View {
 class TranslationResultViewModel: ObservableObject {
     @Published var isSpeaking: Bool = false
     @Published var currentSpeakingText: String = ""
+    @Published var danishIPA: String?
 
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: TranslationSpeechDelegate?
+    private let phoneticsService = PhoneticsService()
 
     init() {
         speechDelegate = TranslationSpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
+    }
+
+    /// Called from `.task { }` in the view, so SwiftUI cancels it automatically
+    /// if the window is torn down mid-lookup. `original`/`translated` are fixed
+    /// for the window's lifetime — no further cancellation bookkeeping needed.
+    func fetchDanishIPAIfNeeded(original: String, translated: String, detectedSource: Language?) async {
+        guard AppSettings.shared.showIPA, let detectedSource else { return }
+        let danishText: String?
+        switch detectedSource {
+        case .danish: danishText = original
+        case .english: danishText = translated
+        }
+        guard let danishText, !danishText.isEmpty else { return }
+
+        let result = try? await phoneticsService.ipa(for: danishText, language: .danish)
+        guard !Task.isCancelled else { return }
+        danishIPA = result
     }
 
     /// Caller chooses the voice (the autoTranslate detection gives us the

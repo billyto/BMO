@@ -222,6 +222,14 @@ private struct InputPanel: View {
                     .frame(minHeight: SigSpacing.inputMinHeight)
                     .tint(SigTheme.accent)
             }
+            if viewModel.sourceLanguage == .danish, let ipa = viewModel.danishIPA {
+                Text(ipa)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(SigTheme.textMuted)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             InputToolbar(viewModel: viewModel)
         }
         .background(SigTheme.inputBg)
@@ -405,26 +413,33 @@ private struct FilledResult: View {
     @ObservedObject var viewModel: TranslatorViewModel
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(viewModel.translatedText)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(SigTheme.textPrimary)
-                .lineSpacing(4)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 3) {
-                SigIconButton(
-                    systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
-                    tint: viewModel.isSpeaking ? SigTheme.accent : SigTheme.textMuted,
-                    help: "Speak",
-                    action: viewModel.speakDanish
-                )
-                SigIconButton(
-                    systemName: viewModel.isCopied ? "checkmark" : "doc.on.doc",
-                    tint: viewModel.isCopied ? SigTheme.success : SigTheme.textMuted,
-                    help: "Copy",
-                    action: viewModel.copyTranslation
-                )
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+                Text(viewModel.translatedText)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(SigTheme.textPrimary)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 3) {
+                    SigIconButton(
+                        systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
+                        tint: viewModel.isSpeaking ? SigTheme.accent : SigTheme.textMuted,
+                        help: "Speak",
+                        action: viewModel.speakDanish
+                    )
+                    SigIconButton(
+                        systemName: viewModel.isCopied ? "checkmark" : "doc.on.doc",
+                        tint: viewModel.isCopied ? SigTheme.success : SigTheme.textMuted,
+                        help: "Copy",
+                        action: viewModel.copyTranslation
+                    )
+                }
+            }
+            if viewModel.targetLanguage == .danish, let ipa = viewModel.danishIPA {
+                Text(ipa)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(SigTheme.textMuted)
             }
         }
         .padding(12)
@@ -568,7 +583,14 @@ class TranslatorViewModel: ObservableObject {
     @Published var isCopied: Bool = false
     @Published var activeView: ActiveView = .main
 
+    /// IPA transcription of whichever side (input or translated) is currently
+    /// Danish — computed once per completed translation, not live-as-you-type.
+    /// Nil while unavailable/disabled/pending.
+    @Published var danishIPA: String?
+
     private let translationService: TranslationService?
+    private let phoneticsService: PhoneticsService
+    private var ipaTask: Task<Void, Never>?
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: SpeechDelegate?
     /// Wraps the 1s debounce sleep that schedules an auto-translate.
@@ -591,10 +613,31 @@ class TranslatorViewModel: ObservableObject {
         inputText = String(text.prefix(Self.inputCharLimit))
     }
 
-    init(translationService: TranslationService?) {
+    init(translationService: TranslationService?, phoneticsService: PhoneticsService = PhoneticsService()) {
         self.translationService = translationService
+        self.phoneticsService = phoneticsService
         speechDelegate = SpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
+    }
+
+    /// Cancels any in-flight IPA lookup and recomputes for whichever of
+    /// `source`/`translated` is Danish (exactly one will be, given the app
+    /// only supports the DA/EN pair). No-op — clears to nil — when the
+    /// feature is off or neither side resolves to non-empty Danish text.
+    private func refreshDanishIPA(source: String, translated: String, from: Language, to: Language) {
+        ipaTask?.cancel()
+        danishIPA = nil
+
+        guard AppSettings.shared.showIPA else { return }
+        let danishText = from == .danish ? source : (to == .danish ? translated : nil)
+        guard let danishText, !danishText.isEmpty else { return }
+
+        ipaTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = try? await self.phoneticsService.ipa(for: danishText, language: .danish)
+            guard !Task.isCancelled else { return }
+            self.danishIPA = result
+        }
     }
 
     func speakDanish() {
@@ -654,6 +697,8 @@ class TranslatorViewModel: ObservableObject {
             setInput(translatedText)
             translatedText = tempText
         }
+
+        refreshDanishIPA(source: inputText, translated: translatedText, from: sourceLanguage, to: targetLanguage)
     }
 
     func clear() {
@@ -663,6 +708,10 @@ class TranslatorViewModel: ObservableObject {
         currentTranslateTask = nil
         copyResetTask?.cancel()
         copyResetTask = nil
+
+        ipaTask?.cancel()
+        ipaTask = nil
+        danishIPA = nil
 
         inputText = ""
         translatedText = ""
@@ -723,6 +772,8 @@ class TranslatorViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         translatedText = ""
+        ipaTask?.cancel()
+        danishIPA = nil
 
         // Snapshot the inputs so a mid-flight edit doesn't poison the request
         // (and so the recordTranslation call uses what was actually translated).
@@ -737,6 +788,7 @@ class TranslatorViewModel: ObservableObject {
             if Task.isCancelled { return }
             translatedText = result
             AppSettings.shared.recordTranslation(source: source, translation: result, from: from, to: to)
+            refreshDanishIPA(source: source, translated: result, from: from, to: to)
         } catch let error as TranslationError {
             if Task.isCancelled { return }
             errorMessage = errorMessage(for: error)
@@ -769,6 +821,10 @@ class TranslatorViewModel: ObservableObject {
         errorMessage = nil
         isCopied = false
         isLoading = false
+
+        // Not persisted in HistoryItem — recomputed on demand like a fresh
+        // translation would be.
+        refreshDanishIPA(source: item.sourceText, translated: item.translatedText, from: item.sourceLang, to: item.targetLang)
     }
 
     /// Copy the current translation to the clipboard and flash `isCopied = true`
@@ -854,5 +910,12 @@ final class MockNetworkClient: NetworkClient {
                 Translation(text: mockText, detectedSourceLanguage: "DA")
             ]
         )
+    }
+}
+
+// Mock PhoneticsRunner for previews
+struct MockPhoneticsRunner: PhoneticsRunner {
+    func run(text: String, language: Language) async throws -> String {
+        "/mɔk ˈiːpʰiːˌeɪ/"
     }
 }

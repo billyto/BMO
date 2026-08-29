@@ -98,6 +98,7 @@ class AppSettings: ObservableObject {
     private let autoTranslateEnabledKey = "autoTranslateEnabled"
     private let historyEnabledKey = "historyEnabled"
     private let historyKey = "translationHistory"
+    private let showIPAKey = "showIPA"
 
     // Published properties
     @Published var autoDismissEnabled: Bool {
@@ -148,6 +149,15 @@ class AppSettings: ObservableObject {
         }
     }
 
+    /// Requires espeak-ng (`brew install espeak-ng`) — see EspeakAvailability.
+    /// Default off: it's an extra subprocess call per translation, and the
+    /// dependency isn't installed by default.
+    @Published var showIPA: Bool {
+        didSet {
+            defaults.set(showIPA, forKey: showIPAKey)
+        }
+    }
+
     @Published var translationHistory: [HistoryItem] {
         didSet {
             if let data = try? JSONEncoder().encode(translationHistory) {
@@ -176,6 +186,7 @@ class AppSettings: ObservableObject {
         // Settings UI rather than getting behavior changes silently.
         self.autoTranslateEnabled = defaults.object(forKey: autoTranslateEnabledKey) as? Bool ?? false
         self.historyEnabled = defaults.object(forKey: historyEnabledKey) as? Bool ?? false
+        self.showIPA = defaults.object(forKey: showIPAKey) as? Bool ?? false
 
         if let data = defaults.data(forKey: historyKey),
            let decoded = try? JSONDecoder().decode([HistoryItem].self, from: data) {
