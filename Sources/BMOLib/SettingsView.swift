@@ -115,11 +115,14 @@ struct SettingsView: View {
                 }
             }
 
-            Text("Changes are saved automatically")
-                .font(.system(size: 11))
-                .foregroundColor(SigTheme.textMuted)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 10)
+            VStack(spacing: 2) {
+                Text("Changes are saved automatically")
+                Text(AppVersion.displayString)
+            }
+            .font(.system(size: 11))
+            .foregroundColor(SigTheme.textMuted)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 10)
         }
         .padding(SigSpacing.panelPadding)
         .frame(width: SigSpacing.popoverWidth, height: 400)
