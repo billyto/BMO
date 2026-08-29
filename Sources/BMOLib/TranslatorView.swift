@@ -9,22 +9,23 @@ enum ActiveView: Equatable {
 }
 
 struct TranslatorView: View {
-    @StateObject private var viewModel: TranslatorViewModel
+    // @ObservedObject, not @StateObject: AppDelegate owns this view model so
+    // it can observe `isPinned` and drive `NSPopover.behavior` from it — the
+    // view doesn't own the object's lifecycle, it just observes.
+    @ObservedObject private var viewModel: TranslatorViewModel
 
     /// translationService is optional so the app can launch with a missing or
     /// invalid DEEPL_API_KEY — the Settings DeepL badge surfaces the state and
     /// translate() reports a clear error rather than the app terminating at
     /// launch.
     init(translationService: TranslationService?) {
-        _viewModel = StateObject(wrappedValue: TranslatorViewModel(
-            translationService: translationService
-        ))
+        self.viewModel = TranslatorViewModel(translationService: translationService)
     }
 
     /// Used by AppDelegate, which needs to own the view model itself so it can
     /// observe `isPinned` and drive `NSPopover.behavior` from it.
     init(viewModel: TranslatorViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+        self.viewModel = viewModel
     }
 
     private static let viewSwitchAnimation: Animation = .easeInOut(duration: 0.22)
