@@ -4,6 +4,7 @@ struct SettingsView: View {
     let onBack: () -> Void
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var keyMonitor = APIKeyMonitor.shared
+    @ObservedObject private var espeakMonitor = EspeakAvailability.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -112,6 +113,20 @@ struct SettingsView: View {
                         subtitle: "Save recent translations for quick access",
                         isOn: $settings.historyEnabled
                     )
+
+                    SectionDivider()
+
+                    SettingsSectionHeader(label: "Pronunciation")
+                    SettingsRow(
+                        title: "Show IPA pronunciation",
+                        subtitle: "Danish pronunciation guide (e.g. /hɛjˀ/) shown with translations",
+                        isOn: $settings.showIPA
+                    )
+                    if settings.showIPA {
+                        EspeakStatusRow(status: espeakMonitor.status)
+                            .padding(.bottom, 4)
+                            .onAppear { espeakMonitor.verify() }
+                    }
                 }
             }
 
@@ -165,6 +180,37 @@ private struct SettingsRow: View {
                 .tint(SigTheme.accent)
         }
         .padding(.vertical, 10)
+    }
+}
+
+private struct EspeakStatusRow: View {
+    let status: EspeakAvailability.Status
+
+    private var dotColor: Color {
+        switch status {
+        case .missing: return SigTheme.warn
+        case .available: return SigTheme.success
+        case .checking: return SigTheme.textMuted
+        }
+    }
+
+    private var text: String {
+        switch status {
+        case .checking: return "Checking for espeak-ng…"
+        case .available: return "espeak-ng detected"
+        case .missing: return "espeak-ng not found — run \"brew install espeak-ng\""
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 6, height: 6)
+            Text(text)
+                .font(.system(size: 11))
+                .foregroundColor(SigTheme.textMuted)
+        }
     }
 }
 

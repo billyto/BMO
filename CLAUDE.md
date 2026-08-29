@@ -179,6 +179,26 @@ The menu bar popover normally uses `NSPopover.behavior = .transient`, which auto
 - `TranslatorView` takes this injected view model via `@ObservedObject`, not `@StateObject`, since AppDelegate — not the view — owns its lifecycle
 - `togglePopover()`'s manual-close path always resets `isPinned = false` before calling `performClose`, so every fresh open starts unpinned and auto-dismissing again
 
+## Danish IPA Pronunciation (v1.8)
+
+Optional IPA transcription (e.g. `/hɛjˀ/`) shown alongside whichever side of a translation is Danish — the input when translating DA→EN, the output when translating EN→DA. Computed once per completed translation, not live-as-you-type.
+
+**Data source: espeak-ng** (Sources/BMOLib/PhoneticsService.swift)
+- GPL-3.0, invoked as an external process via `Process` (not bundled/linked) — same relationship as the app has with any other CLI tool, so the app's own MIT license is unaffected
+- Requires `brew install espeak-ng`; not bundled, not installed automatically
+- `EspeakNG.executablePath()` checks well-known Homebrew/system install locations directly rather than relying on `Process`'s PATH lookup — same reasoning as `DEEPL_API_KEY`'s `.zshenv` requirement: launchd's PATH for GUI-launched apps is minimal
+- `ProcessPhoneticsRunner` shells out to `espeak-ng -v da --ipa -q <text>`; arguments are passed as a `Process` array, not a shell string, so there's no injection concern
+- `PhoneticsService` wraps it behind the `PhoneticsRunner` protocol — same DI shape as `TranslationService`/`NetworkClient` — for test/preview mocking
+
+**EspeakAvailability** (Sources/BMOLib/EspeakAvailability.swift)
+- `@MainActor` `ObservableObject`, mirrors `APIKeyMonitor`'s role — drives the Settings status row (not found / detected)
+
+**Settings** — `AppSettings.showIPA`, default off (extra subprocess call per translation, and the dependency isn't installed by default)
+
+**Display**
+- Popover: `TranslatorViewModel.danishIPA`, recomputed in `refreshDanishIPA(source:translated:from:to:)` after a successful translation, on `swapLanguages()`, and on `restore(from:)` (not persisted in `HistoryItem` — recomputed on demand rather than migrating its schema)
+- Services/hotkey floating window: `TranslationResultViewModel.fetchDanishIPAIfNeeded(original:translated:detectedSource:)`, called once via `.task { }` on `TranslationResultView` so SwiftUI cancels it automatically if the window closes mid-lookup
+
 ## Swift 6 Concurrency
 
 The codebase uses strict concurrency:
