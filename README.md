@@ -5,7 +5,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 ![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.5-green)
+![Version](https://img.shields.io/badge/version-1.7-green)
 
 ## Features
 
@@ -17,7 +17,8 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 - 🔄 Clickable language swap
 - 🔊 Text-to-speech for Danish pronunciation
 - 🎯 Proper macOS app bundle for easy installation
-- 🖱️ **NEW:** System-wide translation service - right-click any selected text and translate via Services menu
+- 🖱️ System-wide translation service - right-click any selected text and translate via Services menu
+- 📌 **NEW:** Pin the popover open during long sessions - stays open even if it loses focus
 
 ## Screenshots
 
@@ -107,7 +108,8 @@ swift build -c release
 4. Click the language indicator (🇩🇰 Danish → 🇬🇧 English) to swap direction
 5. Press ⌘+K to clear all text
 6. Click the speaker icon to hear Danish pronunciation
-7. Click the power icon to quit the app
+7. Click the pin icon to keep the popover open while you work - normally it closes as soon as it loses focus or you click elsewhere; pinning disables that until you unpin it or quit
+8. Click the power icon to quit the app
 
 ### System-Wide Translation Service (NEW in v1.5)
 
@@ -225,6 +227,7 @@ DEEPL_API_KEY=your-key ENABLE_INTEGRATION_TESTS=1 swift test
 
 Completed:
 - [x] System-wide translation service (v1.5) - Right-click context menu translation
+- [x] Popover pin toggle (v1.7) - Keep the popover open during long sessions instead of auto-dismissing on focus loss
 
 Future versions may include:
 
