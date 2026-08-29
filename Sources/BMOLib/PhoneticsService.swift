@@ -65,7 +65,10 @@ struct ProcessPhoneticsRunner: PhoneticsRunner {
 
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = Pipe() // discard espeak-ng's stderr chatter
+        // /dev/null, not an unread Pipe() — an unread pipe's OS buffer (~64KB)
+        // could fill and block the child on a stderr write while we're
+        // blocked reading stdout below, deadlocking both sides.
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
@@ -103,4 +106,16 @@ final class PhoneticsService: Sendable {
         guard !trimmed.isEmpty else { throw PhoneticsError.emptyText }
         return try await runner.run(text: trimmed, language: language)
     }
+}
+
+/// Resolves which of a translation's two texts is Danish — exactly one will
+/// be, since the app only supports the DA/EN pair — or nil if neither side
+/// does (shouldn't happen given that constraint, but keeps this total).
+/// Shared by TranslatorViewModel.refreshDanishIPA and
+/// TranslationResultViewModel.fetchDanishIPAIfNeeded so the popover and the
+/// Services floating window can't drift on this logic.
+func danishText(source: String, translated: String, from: Language, to: Language) -> String? {
+    if from == .danish { return source }
+    if to == .danish { return translated }
+    return nil
 }

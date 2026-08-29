@@ -131,9 +131,28 @@ struct TranslationResultView: View {
     let onCopy: () -> Void
     let onClose: () -> Void
 
-    @StateObject private var viewModel = TranslationResultViewModel()
+    @StateObject private var viewModel: TranslationResultViewModel
     @State private var isCopied = false
     @State private var copyResetTask: Task<Void, Never>?
+
+    /// `phoneticsService` defaults to the real espeak-ng-backed one for
+    /// production (TranslationResultWindow.setupWindow); #Preview passes a
+    /// mock so Xcode Canvas never shells out to a real subprocess.
+    init(
+        original: String,
+        translated: String,
+        detectedSource: Language?,
+        onCopy: @escaping () -> Void,
+        onClose: @escaping () -> Void,
+        phoneticsService: PhoneticsService = PhoneticsService()
+    ) {
+        self.original = original
+        self.translated = translated
+        self.detectedSource = detectedSource
+        self.onCopy = onCopy
+        self.onClose = onClose
+        _viewModel = StateObject(wrappedValue: TranslationResultViewModel(phoneticsService: phoneticsService))
+    }
 
     private var sourceLanguage: Language? { detectedSource }
     private var targetLanguage: Language? {
@@ -315,9 +334,10 @@ class TranslationResultViewModel: ObservableObject {
 
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: TranslationSpeechDelegate?
-    private let phoneticsService = PhoneticsService()
+    private let phoneticsService: PhoneticsService
 
-    init() {
+    init(phoneticsService: PhoneticsService = PhoneticsService()) {
+        self.phoneticsService = phoneticsService
         speechDelegate = TranslationSpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
     }
@@ -327,14 +347,14 @@ class TranslationResultViewModel: ObservableObject {
     /// for the window's lifetime — no further cancellation bookkeeping needed.
     func fetchDanishIPAIfNeeded(original: String, translated: String, detectedSource: Language?) async {
         guard AppSettings.shared.showIPA, let detectedSource else { return }
-        let danishText: String?
-        switch detectedSource {
-        case .danish: danishText = original
-        case .english: danishText = translated
-        }
-        guard let danishText, !danishText.isEmpty else { return }
+        // detectedSource/target here play the role of TranslatorViewModel's
+        // sourceLanguage/targetLanguage — the reused helper just needs "from"
+        // and "to" in that same sense.
+        let target: Language = detectedSource == .english ? .danish : .english
+        let danish = danishText(source: original, translated: translated, from: detectedSource, to: target)
+        guard let danish, !danish.isEmpty else { return }
 
-        let result = try? await phoneticsService.ipa(for: danishText, language: .danish)
+        let result = try? await phoneticsService.ipa(for: danish, language: .danish)
         guard !Task.isCancelled else { return }
         danishIPA = result
     }
@@ -396,7 +416,8 @@ final class TranslationSpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @u
         translated: "Hello! How are you?",
         detectedSource: .danish,
         onCopy: {},
-        onClose: {}
+        onClose: {},
+        phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())
     )
 }
 
@@ -406,6 +427,7 @@ final class TranslationSpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @u
         translated: "Hvor er togstationen?",
         detectedSource: .english,
         onCopy: {},
-        onClose: {}
+        onClose: {},
+        phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())
     )
 }

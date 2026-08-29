@@ -635,12 +635,12 @@ class TranslatorViewModel: ObservableObject {
         danishIPA = nil
 
         guard AppSettings.shared.showIPA else { return }
-        let danishText = from == .danish ? source : (to == .danish ? translated : nil)
-        guard let danishText, !danishText.isEmpty else { return }
+        let danish = danishText(source: source, translated: translated, from: from, to: to)
+        guard let danish, !danish.isEmpty else { return }
 
         ipaTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let result = try? await self.phoneticsService.ipa(for: danishText, language: .danish)
+            let result = try? await self.phoneticsService.ipa(for: danish, language: .danish)
             guard !Task.isCancelled else { return }
             self.danishIPA = result
         }
