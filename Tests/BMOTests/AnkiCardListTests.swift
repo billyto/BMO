@@ -99,6 +99,18 @@ final class AnkiCardListTests: XCTestCase {
         XCTAssertEqual(list.cards.map(\.id), [pending.id])
     }
 
+    func testMarkPendingKeepsIDForReExport() {
+        let target = card("Hej")
+        var list = AnkiCardList(cards: [target, card("Tak")])
+        list.markExported(ids: [target.id])
+
+        list.markPending(id: target.id)
+
+        XCTAssertEqual(list.markState(forDanish: "Hej"), .pending)
+        XCTAssertEqual(list.pending.map(\.id), list.cards.map(\.id))
+        XCTAssertEqual(list.cards.first?.id, target.id)
+    }
+
     func testDelete() {
         let doomed = card("Hej")
         let kept = card("Tak")

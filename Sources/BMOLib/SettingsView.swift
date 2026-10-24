@@ -153,6 +153,26 @@ struct SettingsView: View {
                             .padding(.bottom, 4)
                             .onAppear { espeakMonitor.verify() }
                     }
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("File type")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(SigTheme.textPrimary)
+                            Text("Anki imports both the same way")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(SigTheme.textMuted)
+                        }
+                        Spacer()
+                        Picker("File type", selection: $settings.ankiFileFormat) {
+                            ForEach(AnkiFileFormat.allCases) { format in
+                                Text(format.label).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                    }
+                    .padding(.vertical, 10)
                     Text("Exports are saved to Downloads. In Anki: File → Import.")
                         .font(.system(size: 11))
                         .foregroundColor(SigTheme.textMuted)

@@ -206,16 +206,16 @@ Bookmark translations from any surface, then export the pending ones as an Anki 
 **AnkiCard / AnkiCardList** (Sources/BMOLib/AnkiCard.swift)
 - Always Danish-front / English-back regardless of translation direction — built via the shared `danishText(...)` helper; Danish is first because Anki dedups on the first field
 - `AnkiCard.key(for:)` (trimmed + lowercased Danish) is the duplicate key: one card per Danish phrase across all surfaces
-- `AnkiCardList` is a plain value type holding the mark/export rules so they're testable without the `AppSettings` singleton. `toggle` adds, or removes a *pending* match; it's a no-op on an *exported* match (re-adding would mint a new GUID → duplicate note in Anki)
+- `AnkiCardList` is a plain value type holding the mark/export rules so they're testable without the `AppSettings` singleton. `toggle` adds, or removes a *pending* match; it's a no-op on an *exported* match (re-adding would mint a new GUID → duplicate note in Anki). `markPending(id:)` is the "Export again" path: it clears `exportedAt` but keeps the id, so the re-import updates the existing note
 - `card.id` doubles as the Anki note GUID in the export file, so re-imports update instead of duplicating
 
 **AppSettings**
 - `ankiCards` — stored separately from `translationHistory` (History is off by default and capped at 20), persisted as the plain `[AnkiCard]` array under `"ankiCards"`
-- `ankiDeckName` (default `AnkiExporter.defaultDeckName` = `Dansk::fraSig`) and `ankiIncludeIPA` (default on)
+- `ankiDeckName` (default `AnkiExporter.defaultDeckName` = `Dansk::fraSig`), `ankiIncludeIPA` (default on), and `ankiFileFormat` (`AnkiFileFormat` `.txt`/`.tsv`, default `.txt` — Anki imports both identically)
 
 **AnkiExporter + AnkiExportModel** (Sources/BMOLib/AnkiExporter.swift)
 - `AnkiExporter.makeFile(cards:deck:includeIPA:)` is pure: Anki 2.1.55+ headers (`#separator:tab`, `#html:true`, `#notetype:Basic`, `#deck:`, `#tags column:3`, `#guid column:4`), fields HTML-escaped (incl. `"` and `#`, which Anki's parser treats as quote/comment markers), newlines → `<br>`, tabs → spaces
-- `AnkiExportModel.exportPending()` fills missing IPA via `PhoneticsService`, writes `~/Downloads/Sig-Anki-<yyyy-MM-dd-HHmm>.txt` (suffixed `-2`, `-3`… if taken), reveals it in Finder, and only then marks the cards exported
+- `AnkiExportModel.exportPending()` fills missing IPA via `PhoneticsService`, writes `~/Downloads/Sig-Anki-<yyyy-MM-dd-HHmm>.txt` (or `.tsv`) (suffixed `-2`, `-3`… if taken), reveals it in Finder, and only then marks the cards exported
 - No `NSSavePanel` — it would take focus and close the `.transient` popover mid-export
 
 **UI**

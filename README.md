@@ -121,7 +121,7 @@ Bookmark translations while you study, then export them as Anki flashcards in on
 
 1. **Bookmark** a translation with the bookmark icon - in the popover result (⌘D), the Services/hotkey floating window, or on a History row
 2. Click the **stack icon** in the popover footer to open the Anki list - the badge shows how many cards haven't been exported yet
-3. Click **Export N new cards** - Sig writes `Sig-Anki-<date>.txt` to your Downloads folder and reveals it in Finder
+3. Click **Export N new cards** - Sig writes `Sig-Anki-<date>.txt` (or `.tsv`, set in Settings → Anki) to your Downloads folder and reveals it in Finder
 4. In **Anki**, choose **File → Import** and pick the file - the deck (`Dansk::fraSig` by default) and the Basic note type are preselected
 
 **How cards look:**
@@ -131,7 +131,7 @@ Bookmark translations while you study, then export them as Anki flashcards in on
 
 **Good to know:**
 - Bookmarks are kept separately from History, so they survive History being off or cleared
-- Exported cards stay in the list (dimmed) and aren't exported again. Use **Clear exported** to tidy the list - it doesn't touch Anki
+- Exported cards stay in the list (dimmed) and aren't exported again unless you hover one and click **Export again** (↩) - the next export then updates that card in Anki instead of duplicating it. Use **Clear exported** to tidy the list - it doesn't touch Anki
 - Each card carries a stable ID, so re-importing it updates the existing note instead of adding a duplicate (with Anki's default import options)
 - Change the target deck in Settings → Anki (use `::` for subdecks)
 - Needs Anki 2.1.55 or later. If your Basic note type has a different name (Anki localizes it), pick it in the import dialog

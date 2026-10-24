@@ -102,6 +102,7 @@ class AppSettings: ObservableObject {
     private let ankiCardsKey = "ankiCards"
     private let ankiDeckNameKey = "ankiDeckName"
     private let ankiIncludeIPAKey = "ankiIncludeIPA"
+    private let ankiFileFormatKey = "ankiFileFormat"
 
     // Published properties
     @Published var autoDismissEnabled: Bool {
@@ -197,6 +198,13 @@ class AppSettings: ObservableObject {
         }
     }
 
+    /// Extension of the export file (.txt or .tsv). Anki imports both the same.
+    @Published var ankiFileFormat: AnkiFileFormat {
+        didSet {
+            defaults.set(ankiFileFormat.rawValue, forKey: ankiFileFormatKey)
+        }
+    }
+
     private init() {
         // Load saved values or use defaults
         self.autoDismissEnabled = defaults.object(forKey: autoDismissEnabledKey) as? Bool ?? true
@@ -228,6 +236,7 @@ class AppSettings: ObservableObject {
 
         self.ankiDeckName = defaults.string(forKey: ankiDeckNameKey) ?? AnkiExporter.defaultDeckName
         self.ankiIncludeIPA = defaults.object(forKey: ankiIncludeIPAKey) as? Bool ?? true
+        self.ankiFileFormat = defaults.string(forKey: ankiFileFormatKey).flatMap(AnkiFileFormat.init(rawValue:)) ?? .txt
         if let data = defaults.data(forKey: ankiCardsKey),
            let decoded = try? JSONDecoder().decode([AnkiCard].self, from: data) {
             self.ankiCards = AnkiCardList(cards: decoded)

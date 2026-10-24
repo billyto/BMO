@@ -46,6 +46,7 @@ struct AnkiListView: View {
                         ForEach(settings.ankiCards.cards) { card in
                             AnkiCardRow(
                                 card: card,
+                                onExportAgain: { settings.ankiCards.markPending(id: card.id) },
                                 onDelete: { settings.ankiCards.delete(id: card.id) }
                             )
                         }
@@ -82,6 +83,7 @@ struct AnkiListView: View {
 
 private struct AnkiCardRow: View {
     let card: AnkiCard
+    let onExportAgain: () -> Void
     let onDelete: () -> Void
     @State private var isHovered = false
 
@@ -109,6 +111,16 @@ private struct AnkiCardRow: View {
                 Text("Exported")
                     .font(.system(size: 10))
                     .foregroundColor(SigTheme.textMuted)
+                Button(action: onExportAgain) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 11))
+                        .foregroundColor(SigTheme.textMuted)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Export again (updates the card in Anki, no duplicate)")
+                .opacity(isHovered ? 1 : 0)
             }
             Button(action: onDelete) {
                 Image(systemName: "trash")
@@ -195,7 +207,7 @@ extension AnkiCardList.MarkState {
         switch self {
         case .unmarked: return "Save for Anki"
         case .pending: return "Remove from Anki list"
-        case .exported: return "Exported to Anki"
+        case .exported: return "Exported to Anki — re-export from the Anki list"
         }
     }
 }

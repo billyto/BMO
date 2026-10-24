@@ -3,6 +3,16 @@ import AppKit
 
 /// Builds Anki's text-import format (Anki: File → Import). The header syntax
 /// needs Anki 2.1.55+ — see docs.ankiweb.net → Importing → Text Files.
+/// Extension of the export file. Anki's importer reads both identically —
+/// the choice only affects how the file looks in Finder and what opens it.
+enum AnkiFileFormat: String, CaseIterable, Identifiable, Sendable {
+    case txt
+    case tsv
+
+    var id: String { rawValue }
+    var label: String { ".\(rawValue)" }
+}
+
 enum AnkiExporter {
     static let defaultDeckName = "Dansk::fraSig"
     /// Anki's stock note type, present in every collection. Anki localizes its
@@ -83,14 +93,15 @@ enum AnkiExporter {
         return "Sig-Anki-\(formatter.string(from: date))"
     }
 
-    /// `<stem>.txt` in `directory`, or `<stem>-2.txt`, `-3`… when taken, so two
-    /// exports in the same minute never overwrite each other.
-    static func uniqueFileURL(in directory: URL, date: Date) -> URL {
+    /// `<stem>.<ext>` in `directory`, or `<stem>-2.<ext>`, `-3`… when taken, so
+    /// two exports in the same minute never overwrite each other.
+    static func uniqueFileURL(in directory: URL, date: Date, format: AnkiFileFormat = .txt) -> URL {
         let stem = fileStem(for: date)
-        var url = directory.appendingPathComponent("\(stem).txt")
+        let ext = format.rawValue
+        var url = directory.appendingPathComponent("\(stem).\(ext)")
         var suffix = 2
         while FileManager.default.fileExists(atPath: url.path) {
-            url = directory.appendingPathComponent("\(stem)-\(suffix).txt")
+            url = directory.appendingPathComponent("\(stem)-\(suffix).\(ext)")
             suffix += 1
         }
         return url
@@ -144,7 +155,7 @@ final class AnkiExportModel: ObservableObject {
                 appropriateFor: nil,
                 create: true
             )
-            let url = AnkiExporter.uniqueFileURL(in: downloads, date: Date())
+            let url = AnkiExporter.uniqueFileURL(in: downloads, date: Date(), format: settings.ankiFileFormat)
             let contents = AnkiExporter.makeFile(cards: cards, deck: settings.ankiDeckName, includeIPA: includeIPA)
             try contents.write(to: url, atomically: true, encoding: .utf8)
             // Only after the write succeeds, so a failed export leaves the

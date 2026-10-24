@@ -137,4 +137,19 @@ final class AnkiExporterTests: XCTestCase {
         XCTAssertEqual(first.lastPathComponent, "\(AnkiExporter.fileStem(for: date)).txt")
         XCTAssertEqual(second.lastPathComponent, "\(AnkiExporter.fileStem(for: date))-2.txt")
     }
+
+    func testUniqueFileURLUsesChosenFormat() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AnkiExporterTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let date = Date()
+
+        let first = AnkiExporter.uniqueFileURL(in: directory, date: date, format: .tsv)
+        try "".write(to: first, atomically: true, encoding: .utf8)
+        let second = AnkiExporter.uniqueFileURL(in: directory, date: date, format: .tsv)
+
+        XCTAssertEqual(first.pathExtension, "tsv")
+        XCTAssertEqual(second.lastPathComponent, "\(AnkiExporter.fileStem(for: date))-2.tsv")
+    }
 }

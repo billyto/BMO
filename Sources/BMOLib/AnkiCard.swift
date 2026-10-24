@@ -132,6 +132,15 @@ struct AnkiCardList: Equatable {
         }
     }
 
+    /// Puts an exported card back in the pending set so the next export
+    /// includes it again. Keeps the card's id — it's the note GUID, so Anki
+    /// updates the existing note (or re-creates it if deleted) rather than
+    /// adding a duplicate.
+    mutating func markPending(id: UUID) {
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+        cards[index].exportedAt = nil
+    }
+
     mutating func clearExported() {
         cards.removeAll(where: \.isExported)
     }
