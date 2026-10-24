@@ -5,6 +5,7 @@ import AVFoundation
 enum ActiveView: Equatable {
     case main
     case history
+    case anki
     case settings
 }
 
@@ -49,6 +50,12 @@ struct TranslatorView: View {
                         viewModel.restore(from: item)
                         withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .main }
                     }
+                )
+                .transition(.move(edge: .trailing))
+            case .anki:
+                AnkiListView(
+                    onBack: { withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .main } },
+                    phoneticsService: viewModel.phoneticsService
                 )
                 .transition(.move(edge: .trailing))
             case .settings:
@@ -417,6 +424,9 @@ private struct ErrorResult: View {
 
 private struct FilledResult: View {
     @ObservedObject var viewModel: TranslatorViewModel
+    // Observed so the bookmark flips as soon as the card list changes,
+    // including from History or the floating window.
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -440,6 +450,16 @@ private struct FilledResult: View {
                         help: "Copy",
                         action: viewModel.copyTranslation
                     )
+                    if let card = viewModel.ankiCandidate {
+                        let state = settings.ankiCards.markState(forDanish: card.danish)
+                        SigIconButton(
+                            systemName: state.systemName,
+                            tint: state.tint,
+                            help: state == .exported ? state.help : "\(state.help) (⌘D)",
+                            action: viewModel.toggleAnkiBookmark
+                        )
+                        .keyboardShortcut("d", modifiers: .command)
+                    }
                 }
             }
             if viewModel.targetLanguage == .danish, let ipa = viewModel.danishIPA {
@@ -463,6 +483,7 @@ private struct FilledResult: View {
 
 private struct FooterRow: View {
     @ObservedObject var viewModel: TranslatorViewModel
+    @ObservedObject private var settings = AppSettings.shared
 
     private static let viewSwitchAnimation: Animation = .easeInOut(duration: 0.22)
 
@@ -474,6 +495,19 @@ private struct FooterRow: View {
                 isActive: viewModel.activeView == .history
             ) {
                 withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .history }
+            }
+            let pendingCount = settings.ankiCards.pending.count
+            FooterButton(
+                systemName: "rectangle.stack",
+                help: pendingCount == 0 ? "Anki cards" : "Anki cards (\(pendingCount) to export)",
+                isActive: viewModel.activeView == .anki
+            ) {
+                withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .anki }
+            }
+            .overlay(alignment: .topTrailing) {
+                if pendingCount > 0 {
+                    CountBadge(count: pendingCount)
+                }
             }
             Spacer()
             FooterButton(
@@ -536,6 +570,23 @@ private struct FooterButton: View {
     }
 }
 
+/// Pending-card count on the footer's Anki button.
+private struct CountBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.system(size: 8.5, weight: .bold))
+            .monospacedDigit()
+            .foregroundColor(.white)
+            .padding(.horizontal, 3.5)
+            .frame(minWidth: 13, minHeight: 13)
+            .background(Capsule().fill(SigTheme.accent))
+            .offset(x: 4, y: -3)
+            .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Shared bits
 
 private struct BouncingDots: View {
@@ -594,8 +645,16 @@ class TranslatorViewModel: ObservableObject {
     /// Nil while unavailable/disabled/pending.
     @Published var danishIPA: String?
 
+    /// The source text the on-screen `translatedText` was produced from.
+    /// Tracked separately from `inputText` because the user can keep editing
+    /// the input after a translation lands, and a bookmarked card must pair
+    /// the translation with what was actually translated.
+    private var translationSource: String = ""
+
     private let translationService: TranslationService?
-    private let phoneticsService: PhoneticsService
+    /// Not private: TranslatorView hands it to AnkiListView for export-time
+    /// IPA lookups, so #Preview's mock reaches that view too.
+    let phoneticsService: PhoneticsService
     private var ipaTask: Task<Void, Never>?
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: SpeechDelegate?
@@ -611,6 +670,24 @@ class TranslatorViewModel: ObservableObject {
     /// useless requests.
     var isInputBlank: Bool {
         inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// The card the bookmark button would save for the translation on screen.
+    /// Nil when there's no translation (or no Danish side).
+    var ankiCandidate: AnkiCard? {
+        guard !translatedText.isEmpty else { return nil }
+        return AnkiCard(
+            source: translationSource,
+            translated: translatedText,
+            from: sourceLanguage,
+            to: targetLanguage,
+            ipa: danishIPA
+        )
+    }
+
+    func toggleAnkiBookmark() {
+        guard let card = ankiCandidate else { return }
+        AppSettings.shared.ankiCards.toggle(card)
     }
 
     /// Programmatic input setter that enforces `inputCharLimit`. Use this from
@@ -702,6 +779,7 @@ class TranslatorViewModel: ObservableObject {
             let tempText = inputText
             setInput(translatedText)
             translatedText = tempText
+            translationSource = inputText
         }
 
         refreshDanishIPA(source: inputText, translated: translatedText, from: sourceLanguage, to: targetLanguage)
@@ -721,6 +799,7 @@ class TranslatorViewModel: ObservableObject {
 
         inputText = ""
         translatedText = ""
+        translationSource = ""
         errorMessage = nil
         isCopied = false
         // A clear() during an in-flight translate would otherwise leave the
@@ -793,6 +872,7 @@ class TranslatorViewModel: ObservableObject {
             // and resuming — apply the result only if we're still current.
             if Task.isCancelled { return }
             translatedText = result
+            translationSource = source
             AppSettings.shared.recordTranslation(source: source, translation: result, from: from, to: to)
             refreshDanishIPA(source: source, translated: result, from: from, to: to)
         } catch let error as TranslationError {
@@ -822,6 +902,7 @@ class TranslatorViewModel: ObservableObject {
         // through setInput rather than assigning directly.
         setInput(item.sourceText)
         translatedText = item.translatedText
+        translationSource = item.sourceText
         sourceLanguage = item.sourceLang
         targetLanguage = item.targetLang
         errorMessage = nil

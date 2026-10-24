@@ -37,13 +37,25 @@ struct HistoryView: View {
                 ScrollView {
                     VStack(spacing: 2) {
                         ForEach(settings.translationHistory) { item in
+                            // No IPA here — History doesn't store it; export
+                            // fills it in.
+                            let ankiCard = AnkiCard(
+                                source: item.sourceText,
+                                translated: item.translatedText,
+                                from: item.sourceLang,
+                                to: item.targetLang
+                            )
                             HistoryRow(
                                 item: item,
                                 speech: speech,
+                                ankiState: ankiCard.map { settings.ankiCards.markState(forDanish: $0.danish) },
                                 onSelect: { onSelect(item) },
                                 onDelete: {
                                     if speech.speakingItemID == item.id { speech.stop() }
                                     settings.deleteHistoryItem(id: item.id)
+                                },
+                                onToggleAnki: {
+                                    if let ankiCard { settings.ankiCards.toggle(ankiCard) }
                                 }
                             )
                         }
@@ -61,8 +73,11 @@ struct HistoryView: View {
 private struct HistoryRow: View {
     let item: HistoryItem
     @ObservedObject var speech: HistorySpeechModel
+    /// Nil when the row can't become a card (no Danish side) — hides the bookmark.
+    let ankiState: AnkiCardList.MarkState?
     let onSelect: () -> Void
     let onDelete: () -> Void
+    let onToggleAnki: () -> Void
     @State private var isHovered = false
 
     private var directionLabel: String {
@@ -133,6 +148,21 @@ private struct HistoryRow: View {
             // Keep the action group visible while playing so a "stop" button
             // doesn't disappear mid-playback when the user moves the pointer.
             .opacity(isHovered || isSpeakingThisItem ? 1 : 0)
+
+            // Outside the hover group so a bookmarked row stays visibly
+            // marked when the pointer isn't over it.
+            if let ankiState {
+                Button(action: onToggleAnki) {
+                    Image(systemName: ankiState.systemName)
+                        .font(.system(size: 11))
+                        .foregroundColor(ankiState.tint)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(ankiState.help)
+                .opacity(isHovered || ankiState != .unmarked ? 1 : 0)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)

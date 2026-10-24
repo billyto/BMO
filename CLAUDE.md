@@ -199,6 +199,31 @@ Optional IPA transcription (e.g. `/hɛjˀ/`) shown alongside whichever side of a
 - Popover: `TranslatorViewModel.danishIPA`, recomputed in `refreshDanishIPA(source:translated:from:to:)` after a successful translation, on `swapLanguages()`, and on `restore(from:)` (not persisted in `HistoryItem` — recomputed on demand rather than migrating its schema)
 - Services/hotkey floating window: `TranslationResultViewModel.fetchDanishIPAIfNeeded(original:translated:detectedSource:)`, called once via `.task { }` on `TranslationResultView` so SwiftUI cancels it automatically if the window closes mid-lookup
 
+## Anki Export (v1.10)
+
+Bookmark translations from any surface, then export the pending ones as an Anki text-import file. Spec: `requirements/req_1_10.md`. AnkiConnect (direct push) is deliberately deferred.
+
+**AnkiCard / AnkiCardList** (Sources/BMOLib/AnkiCard.swift)
+- Always Danish-front / English-back regardless of translation direction — built via the shared `danishText(...)` helper; Danish is first because Anki dedups on the first field
+- `AnkiCard.key(for:)` (trimmed + lowercased Danish) is the duplicate key: one card per Danish phrase across all surfaces
+- `AnkiCardList` is a plain value type holding the mark/export rules so they're testable without the `AppSettings` singleton. `toggle` adds, or removes a *pending* match; it's a no-op on an *exported* match (re-adding would mint a new GUID → duplicate note in Anki)
+- `card.id` doubles as the Anki note GUID in the export file, so re-imports update instead of duplicating
+
+**AppSettings**
+- `ankiCards` — stored separately from `translationHistory` (History is off by default and capped at 20), persisted as the plain `[AnkiCard]` array under `"ankiCards"`
+- `ankiDeckName` (default `AnkiExporter.defaultDeckName` = `Dansk::fraSig`) and `ankiIncludeIPA` (default on)
+
+**AnkiExporter + AnkiExportModel** (Sources/BMOLib/AnkiExporter.swift)
+- `AnkiExporter.makeFile(cards:deck:includeIPA:)` is pure: Anki 2.1.55+ headers (`#separator:tab`, `#html:true`, `#notetype:Basic`, `#deck:`, `#tags column:3`, `#guid column:4`), fields HTML-escaped (incl. `"` and `#`, which Anki's parser treats as quote/comment markers), newlines → `<br>`, tabs → spaces
+- `AnkiExportModel.exportPending()` fills missing IPA via `PhoneticsService`, writes `~/Downloads/Sig-Anki-<yyyy-MM-dd-HHmm>.txt` (suffixed `-2`, `-3`… if taken), reveals it in Finder, and only then marks the cards exported
+- No `NSSavePanel` — it would take focus and close the `.transient` popover mid-export
+
+**UI**
+- Bookmark button (`bookmark` / `bookmark.fill`, styling shared via the `AnkiCardList.MarkState` extension in AnkiListView.swift): popover `FilledResult` (⌘D), floating `TranslationResultView` (hidden when `detectedSource == nil`), and `HistoryRow` (kept visible on marked rows)
+- `TranslatorViewModel.translationSource` tracks the text the on-screen translation came from, since `inputText` can be edited after a translation lands; `ankiCandidate` pairs it with `translatedText`
+- `ActiveView.anki` → `AnkiListView`, opened from the footer's `rectangle.stack` button (badge = pending count). It receives the view model's `phoneticsService` so #Preview stays on the mock
+- Settings → Anki section: deck name, include-IPA toggle (with the espeak-ng status row)
+
 ## Swift 6 Concurrency
 
 The codebase uses strict concurrency:

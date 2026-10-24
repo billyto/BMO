@@ -99,6 +99,9 @@ class AppSettings: ObservableObject {
     private let historyEnabledKey = "historyEnabled"
     private let historyKey = "translationHistory"
     private let showIPAKey = "showIPA"
+    private let ankiCardsKey = "ankiCards"
+    private let ankiDeckNameKey = "ankiDeckName"
+    private let ankiIncludeIPAKey = "ankiIncludeIPA"
 
     // Published properties
     @Published var autoDismissEnabled: Bool {
@@ -166,6 +169,34 @@ class AppSettings: ObservableObject {
         }
     }
 
+    /// Translations bookmarked for Anki. Kept separate from translationHistory
+    /// — History is off by default and capped at `historyMaxCount`, so it
+    /// can't be the source of truth for cards. Persisted as the plain card
+    /// array so the stored format doesn't depend on AnkiCardList's shape.
+    @Published var ankiCards: AnkiCardList {
+        didSet {
+            if let data = try? JSONEncoder().encode(ankiCards.cards) {
+                defaults.set(data, forKey: ankiCardsKey)
+            }
+        }
+    }
+
+    /// Target deck written into the export file's `#deck:` header. `::` makes
+    /// a subdeck. A blank value falls back to `AnkiExporter.defaultDeckName`.
+    @Published var ankiDeckName: String {
+        didSet {
+            defaults.set(ankiDeckName, forKey: ankiDeckNameKey)
+        }
+    }
+
+    /// Adds IPA under the English side of exported cards. Only has an effect
+    /// when espeak-ng is installed (missing IPA is looked up at export time).
+    @Published var ankiIncludeIPA: Bool {
+        didSet {
+            defaults.set(ankiIncludeIPA, forKey: ankiIncludeIPAKey)
+        }
+    }
+
     private init() {
         // Load saved values or use defaults
         self.autoDismissEnabled = defaults.object(forKey: autoDismissEnabledKey) as? Bool ?? true
@@ -193,6 +224,15 @@ class AppSettings: ObservableObject {
             self.translationHistory = decoded
         } else {
             self.translationHistory = []
+        }
+
+        self.ankiDeckName = defaults.string(forKey: ankiDeckNameKey) ?? AnkiExporter.defaultDeckName
+        self.ankiIncludeIPA = defaults.object(forKey: ankiIncludeIPAKey) as? Bool ?? true
+        if let data = defaults.data(forKey: ankiCardsKey),
+           let decoded = try? JSONDecoder().decode([AnkiCard].self, from: data) {
+            self.ankiCards = AnkiCardList(cards: decoded)
+        } else {
+            self.ankiCards = AnkiCardList()
         }
     }
 
