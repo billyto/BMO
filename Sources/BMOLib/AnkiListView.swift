@@ -3,14 +3,13 @@ import SwiftUI
 struct AnkiListView: View {
     let onBack: () -> Void
     @ObservedObject private var settings = AppSettings.shared
-    @StateObject private var exporter: AnkiExportModel
+    /// Injected, not created here: it's owned by TranslatorViewModel so an
+    /// export in progress survives navigating Back and reopening this view.
+    @ObservedObject var exporter: AnkiExportModel
 
-    /// `phoneticsService` is used to fill in missing IPA at export time.
-    /// TranslatorView passes its view model's service through, so #Preview
-    /// gets the mock and never shells out to espeak-ng from Xcode Canvas.
-    init(onBack: @escaping () -> Void, phoneticsService: PhoneticsService = PhoneticsService()) {
+    init(onBack: @escaping () -> Void, exporter: AnkiExportModel) {
         self.onBack = onBack
-        _exporter = StateObject(wrappedValue: AnkiExportModel(phoneticsService: phoneticsService))
+        self.exporter = exporter
     }
 
     private var hasExported: Bool {
@@ -213,5 +212,5 @@ extension AnkiCardList.MarkState {
 }
 
 #Preview {
-    AnkiListView(onBack: {}, phoneticsService: PhoneticsService(runner: MockPhoneticsRunner()))
+    AnkiListView(onBack: {}, exporter: AnkiExportModel(phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())))
 }
