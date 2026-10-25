@@ -54,6 +54,7 @@ The project uses a library + executable pattern to support SwiftUI previews:
 
 - **BMOLib** (library target): Contains all SwiftUI views, business logic, and supports Xcode previews
 - **BMO** (executable target): Minimal entry point that depends on BMOLib
+  - `main.swift` picks the `App` struct at runtime: `BMOApp` (macOS 15+) marks its placeholder `Settings { EmptyView() }` scene `.defaultLaunchBehavior(.suppressed)`; otherwise SwiftUI opens it as an empty "Sig Settings" window at launch (#18). `SceneBuilder` can't do `if #available`, hence two structs (`BMOAppMacOS14` for macOS 14)
 
 This separation is critical because SPM executable targets don't support SwiftUI previews, but library targets do.
 

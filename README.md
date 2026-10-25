@@ -5,7 +5,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 ![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.10-green)
+![Version](https://img.shields.io/badge/version-1.10.1-green)
 
 ## Features
 
