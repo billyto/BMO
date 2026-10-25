@@ -220,8 +220,8 @@ Bookmark translations from any surface, then export the pending ones as an Anki 
 
 **UI**
 - Bookmark button (`bookmark` / `bookmark.fill`, styling shared via the `AnkiCardList.MarkState` extension in AnkiListView.swift): popover `FilledResult` (⌘D), floating `TranslationResultView` (hidden when `detectedSource == nil`), and `HistoryRow` (kept visible on marked rows)
-- `TranslatorViewModel.translationSource` tracks the text the on-screen translation came from, since `inputText` can be edited after a translation lands; `ankiCandidate` pairs it with `translatedText`
-- `ActiveView.anki` → `AnkiListView`, opened from the footer's `rectangle.stack` button (badge = pending count). It receives the view model's `phoneticsService` so #Preview stays on the mock
+- `TranslatorViewModel.translationSource` tracks the text the on-screen translation came from, since `inputText` can be edited after a translation lands; `ankiCandidate` pairs it with `translatedText`. `swapLanguages()` swaps that pair (not the edited, 500-char-truncated input) so a bookmark after a swap is still the real, full pair
+- `ActiveView.anki` → `AnkiListView`, opened from the footer's `rectangle.stack` button (badge = pending count). Its `AnkiExportModel` is owned by `TranslatorViewModel.ankiExporter` and injected, so an in-progress export (and its `isExporting` guard) survives navigating Back; it shares the view model's `phoneticsService`, so #Preview stays on the mock
 - Settings → Anki section: deck name, include-IPA toggle (with the espeak-ng status row)
 
 ## Swift 6 Concurrency

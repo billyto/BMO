@@ -55,7 +55,7 @@ struct TranslatorView: View {
             case .anki:
                 AnkiListView(
                     onBack: { withAnimation(Self.viewSwitchAnimation) { viewModel.activeView = .main } },
-                    phoneticsService: viewModel.phoneticsService
+                    exporter: viewModel.ankiExporter
                 )
                 .transition(.move(edge: .trailing))
             case .settings:
@@ -652,9 +652,13 @@ class TranslatorViewModel: ObservableObject {
     private var translationSource: String = ""
 
     private let translationService: TranslationService?
-    /// Not private: TranslatorView hands it to AnkiListView for export-time
-    /// IPA lookups, so #Preview's mock reaches that view too.
-    let phoneticsService: PhoneticsService
+    private let phoneticsService: PhoneticsService
+    /// Owned here rather than by AnkiListView: the list view is torn down when
+    /// the user navigates Back, but an export (IPA lookups + file write) keeps
+    /// running. A view-owned exporter would come back with `isExporting ==
+    /// false` and allow a second, overlapping export of the same cards.
+    /// Shares `phoneticsService`, so #Preview's mock reaches it too.
+    let ankiExporter: AnkiExportModel
     private var ipaTask: Task<Void, Never>?
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: SpeechDelegate?
@@ -699,6 +703,7 @@ class TranslatorViewModel: ObservableObject {
     init(translationService: TranslationService?, phoneticsService: PhoneticsService = PhoneticsService()) {
         self.translationService = translationService
         self.phoneticsService = phoneticsService
+        self.ankiExporter = AnkiExportModel(phoneticsService: phoneticsService)
         speechDelegate = SpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
     }
@@ -775,14 +780,20 @@ class TranslatorViewModel: ObservableObject {
         // Optionally swap the text too. Translation results can exceed
         // inputCharLimit (DeepL doesn't promise length-preserving output), so
         // go through setInput to truncate rather than assign directly.
+        // Swap the translation pair itself rather than the editable input: the
+        // input may have been edited since the translation landed, and setInput
+        // truncates — either would leave a mismatched or shortened pair for the
+        // Anki bookmark.
         if !translatedText.isEmpty {
-            let tempText = inputText
-            setInput(translatedText)
-            translatedText = tempText
-            translationSource = inputText
+            let previousSource = translationSource.isEmpty ? inputText : translationSource
+            let previousTranslation = translatedText
+            setInput(previousTranslation)
+            translatedText = previousSource
+            translationSource = previousTranslation
         }
 
-        refreshDanishIPA(source: inputText, translated: translatedText, from: sourceLanguage, to: targetLanguage)
+        let ipaSource = translatedText.isEmpty ? inputText : translationSource
+        refreshDanishIPA(source: ipaSource, translated: translatedText, from: sourceLanguage, to: targetLanguage)
     }
 
     func clear() {
