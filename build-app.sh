@@ -18,9 +18,18 @@ rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
+# Ask SwiftPM where it put the products — the path differs between the
+# native build system (.build/release) and Swift Build (.build/out/Products/Release)
+BIN_PATH="$(swift build -c release --show-bin-path)"
+
 # Copy the binary and rename it to Sig
 echo "📋 Copying binary..."
-cp .build/release/BMO "$APP_DIR/Contents/MacOS/Sig"
+cp "$BIN_PATH/BMO" "$APP_DIR/Contents/MacOS/Sig"
+
+# Copy the SwiftPM resource bundle (menu bar icon). Bundle.module looks for it
+# in Contents/Resources; without it the app crashes at launch.
+echo "📦 Copying resource bundle..."
+cp -R "$BIN_PATH/BMO_BMOLib.bundle" "$APP_DIR/Contents/Resources/"
 
 # Copy Info.plist
 echo "📋 Copying Info.plist..."

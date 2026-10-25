@@ -132,6 +132,9 @@ struct TranslationResultView: View {
     let onClose: () -> Void
 
     @StateObject private var viewModel: TranslationResultViewModel
+    // Observed so the bookmark reflects the card list live (e.g. the same
+    // phrase already bookmarked from the popover).
+    @ObservedObject private var settings = AppSettings.shared
     @State private var isCopied = false
     @State private var copyResetTask: Task<Void, Never>?
 
@@ -160,6 +163,18 @@ struct TranslationResultView: View {
         // autoTranslate's contract: when source is English we re-translate to
         // Danish; everything else lands in English.
         return detectedSource == .english ? .danish : .english
+    }
+
+    /// Nil when DeepL detected a non-DA/EN source — no Danish side to card.
+    private var ankiCandidate: AnkiCard? {
+        guard let source = sourceLanguage, let target = targetLanguage else { return nil }
+        return AnkiCard(
+            source: original,
+            translated: translated,
+            from: source,
+            to: target,
+            ipa: viewModel.danishIPA
+        )
     }
 
     private var directionLabel: String? {
@@ -293,6 +308,15 @@ struct TranslationResultView: View {
                         help: isCopied ? "Copied" : "Copy",
                         action: performCopy
                     )
+                    if let card = ankiCandidate {
+                        let state = settings.ankiCards.markState(forDanish: card.danish)
+                        SigIconButton.compact(
+                            systemName: state.systemName,
+                            tint: state.tint,
+                            help: state.help,
+                            action: { settings.ankiCards.toggle(card) }
+                        )
+                    }
                 }
             }
             if targetLanguage == .danish, let ipa = viewModel.danishIPA {

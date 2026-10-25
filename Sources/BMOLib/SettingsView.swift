@@ -127,6 +127,57 @@ struct SettingsView: View {
                             .padding(.bottom, 4)
                             .onAppear { espeakMonitor.verify() }
                     }
+
+                    SectionDivider()
+
+                    SettingsSectionHeader(label: "Anki")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Deck")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(SigTheme.textPrimary)
+                        TextField(AnkiExporter.defaultDeckName, text: $settings.ankiDeckName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12))
+                        Text("Use :: for subdecks, e.g. \(AnkiExporter.defaultDeckName)")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(SigTheme.textMuted)
+                    }
+                    .padding(.vertical, 10)
+                    SettingsRow(
+                        title: "Include IPA on cards",
+                        subtitle: "Danish pronunciation under the English side",
+                        isOn: $settings.ankiIncludeIPA
+                    )
+                    if settings.ankiIncludeIPA {
+                        EspeakStatusRow(status: espeakMonitor.status)
+                            .padding(.bottom, 4)
+                            .onAppear { espeakMonitor.verify() }
+                    }
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("File type")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(SigTheme.textPrimary)
+                            Text("Anki imports both the same way")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(SigTheme.textMuted)
+                        }
+                        Spacer()
+                        Picker("File type", selection: $settings.ankiFileFormat) {
+                            ForEach(AnkiFileFormat.allCases) { format in
+                                Text(format.label).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                    }
+                    .padding(.vertical, 10)
+                    Text("Exports are saved to Downloads. In Anki: File → Import.")
+                        .font(.system(size: 11))
+                        .foregroundColor(SigTheme.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 8)
                 }
             }
 
@@ -269,7 +320,7 @@ private struct APIKeyBadge: View {
     }
 }
 
-// MARK: - Shared header used by Settings and History
+// MARK: - Shared header used by Settings, History, and Anki
 
 struct ViewHeader: View {
     let title: String

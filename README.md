@@ -5,7 +5,7 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 ![macOS](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9-green)
+![Version](https://img.shields.io/badge/version-1.10-green)
 
 ## Features
 
@@ -19,7 +19,8 @@ A lightweight macOS menu bar app for quick Danish ↔ English translations using
 - 🎯 Proper macOS app bundle for easy installation
 - 🖱️ System-wide translation service - right-click any selected text and translate via Services menu
 - 📌 Pin the popover open during long sessions - stays open even if it loses focus
-- 🗣️ **NEW:** Danish IPA pronunciation guide (e.g. `/hɛjˀ/`) shown alongside translations - optional, requires `espeak-ng`
+- 🗣️ Danish IPA pronunciation guide (e.g. `/hɛjˀ/`) shown alongside translations - optional, requires `espeak-ng`
+- 🗂️ **NEW:** Bookmark translations and export them as Anki flashcards (Danish front, English back)
 
 ## Screenshots
 
@@ -111,7 +112,29 @@ swift build -c release
 5. Press ⌘+K to clear all text
 6. Click the speaker icon to hear Danish pronunciation
 7. Click the pin icon to keep the popover open while you work - normally it closes as soon as it loses focus or you click elsewhere; pinning disables that until you unpin it or quit
-8. Click the power icon to quit the app
+8. Click the bookmark icon next to a translation (or press ⌘D) to save it for Anki - see [Anki Export](#anki-export-new-in-v110)
+9. Click the power icon to quit the app
+
+### Anki Export (NEW in v1.10)
+
+Bookmark translations while you study, then export them as Anki flashcards in one go.
+
+1. **Bookmark** a translation with the bookmark icon - in the popover result (⌘D), the Services/hotkey floating window, or on a History row
+2. Click the **stack icon** in the popover footer to open the Anki list - the badge shows how many cards haven't been exported yet
+3. Click **Export N new cards** - Sig writes `Sig-Anki-<date>.txt` (or `.tsv`, set in Settings → Anki) to your Downloads folder and reveals it in Finder
+4. In **Anki**, choose **File → Import** and pick the file - the deck (`Dansk::fraSig` by default) and the Basic note type are preselected
+
+**How cards look:**
+- Front: the Danish text. Back: the English text, plus the IPA pronunciation when espeak-ng is installed (toggle in Settings → Anki)
+- Cards are always Danish → English, whichever direction you translated
+- Each card is tagged `fraSig`
+
+**Good to know:**
+- Bookmarks are kept separately from History, so they survive History being off or cleared
+- Exported cards stay in the list (dimmed) and aren't exported again unless you hover one and click **Export again** (↩) - the next export then updates that card in Anki instead of duplicating it. Use **Clear exported** to tidy the list - it doesn't touch Anki
+- Each card carries a stable ID, so re-importing it updates the existing note instead of adding a duplicate (with Anki's default import options)
+- Change the target deck in Settings → Anki (use `::` for subdecks)
+- Needs Anki 2.1.55 or later. If your Basic note type has a different name (Anki localizes it), pick it in the import dialog
 
 ### System-Wide Translation Service (NEW in v1.5)
 
@@ -164,10 +187,14 @@ BMO/
 │       ├── TranslationResultWindow.swift # Floating result window for Services
 │       ├── HotkeyMonitor.swift        # Global hotkey support
 │       ├── AppSettings.swift          # User-facing settings
-│       └── SettingsView.swift         # Settings UI
+│       ├── SettingsView.swift         # Settings UI
+│       ├── AnkiCard.swift             # Anki card model + bookmark list rules
+│       ├── AnkiExporter.swift         # Anki text-import file + export flow
+│       └── AnkiListView.swift         # Anki list UI
 ├── Tests/BMOTests/
 │   ├── TranslationServiceTests.swift             # Unit tests (mocked network)
-│   └── TranslationServiceIntegrationTests.swift  # Integration tests (real API)
+│   ├── TranslationServiceIntegrationTests.swift  # Integration tests (real API)
+│   └── Anki*Tests.swift                          # Anki card, list, and export-format tests
 └── Package.swift
 ```
 
@@ -231,11 +258,12 @@ Completed:
 - [x] System-wide translation service (v1.5) - Right-click context menu translation
 - [x] Popover pin toggle (v1.7) - Keep the popover open during long sessions instead of auto-dismissing on focus loss
 - [x] Danish IPA pronunciation guide (v1.9) - Optional, requires `espeak-ng` (see Requirements)
+- [x] Anki export (v1.10) - Bookmark translations and export them as Danish → English flashcards
 
 Future versions may include:
 
 - [ ] Translation history
-- [ ] Favorite translations
+- [ ] Send cards straight to Anki via AnkiConnect
 - [ ] Dark mode support
 - [ ] Global hotkey to show popover
 - [ ] Example sentences
