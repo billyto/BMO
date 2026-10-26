@@ -23,6 +23,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        Notifier.shared.configure()
+
         // Try to bring up the translation service. If DEEPL_API_KEY is missing
         // or invalid we keep going with a nil service — APIKeyMonitor signals
         // the state via the Settings DeepL badge (red = missing, yellow =

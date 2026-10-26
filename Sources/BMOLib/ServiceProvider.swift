@@ -100,11 +100,6 @@ import AppKit
     }
 
     private func showError(_ message: String) {
-        // Show error notification
-        let notification = NSUserNotification()
-        notification.title = "BMO Translation Error"
-        notification.informativeText = message
-        notification.soundName = NSUserNotificationDefaultSoundName
-        NSUserNotificationCenter.default.deliver(notification)
+        Notifier.shared.post(title: "BMO Translation Error", message: message)
     }
 }
