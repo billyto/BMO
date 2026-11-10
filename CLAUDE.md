@@ -225,6 +225,13 @@ Bookmark translations from any surface, then export the pending ones as an Anki 
 - `ActiveView.anki` → `AnkiListView`, opened from the footer's `rectangle.stack` button (badge = pending count). Its `AnkiExportModel` is owned by `TranslatorViewModel.ankiExporter` and injected, so an in-progress export (and its `isExporting` guard) survives navigating Back; it shares the view model's `phoneticsService`, so #Preview stays on the mock
 - Settings → Anki section: deck name, include-IPA toggle (with the espeak-ng status row)
 
+## User Notifications
+
+**Notifier** (Sources/BMOLib/Notifier.swift) — `@MainActor` singleton over `UNUserNotificationCenter` (replaces the deprecated `NSUserNotification`), used for hotkey/Services errors and the accessibility prompt
+- `configure()` runs early in `applicationDidFinishLaunching` to set the delegate and register the `ACCESSIBILITY_REQUIRED` category ("Open Settings" action; clicking the banner does the same)
+- Authorization is requested lazily on the first notification, so the system prompt appears then, not at launch
+- `UNUserNotificationCenter.current()` crashes outside an app bundle, so when running the bare `.build/release/BMO` binary notifications are only logged via `NSLog`
+
 ## Swift 6 Concurrency
 
 The codebase uses strict concurrency:

@@ -291,48 +291,19 @@ class HotkeyMonitor: NSObject, ObservableObject {
     }
 
     private func showNotification(title: String, message: String) {
-        let notification = NSUserNotification()
-        notification.title = title
-        notification.informativeText = message
-        notification.soundName = NSUserNotificationDefaultSoundName
-        NSUserNotificationCenter.default.deliver(notification)
+        Notifier.shared.post(title: title, message: message)
     }
 
     private func requestAccessibilityPermissions() {
         // Use notification instead of modal alert to avoid blocking
-        let notification = NSUserNotification()
-        notification.title = "Accessibility Permission Required"
-        notification.informativeText = "BMO needs accessibility permissions to enable the global hotkey feature. Click to open System Settings."
-        notification.soundName = NSUserNotificationDefaultSoundName
-        notification.hasActionButton = true
-        notification.actionButtonTitle = "Open Settings"
-
-        // Set user info to identify this notification
-        notification.userInfo = ["action": "openAccessibilitySettings"]
-
-        NSUserNotificationCenter.default.delegate = self
-        NSUserNotificationCenter.default.deliver(notification)
-
+        Notifier.shared.postAccessibilityRequired(
+            message: "BMO needs accessibility permissions to enable the global hotkey feature. Click to open System Settings."
+        )
         NSLog("Accessibility permission required - notification sent")
     }
 
     nonisolated deinit {
         // Note: Can't call stop() from deinit due to actor isolation
         // The system will clean up the event tap when the port is released
-    }
-}
-
-// MARK: - Notification Delegate
-extension HotkeyMonitor: NSUserNotificationCenterDelegate {
-    nonisolated func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
-        // Handle notification click
-        if let action = notification.userInfo?["action"] as? String, action == "openAccessibilitySettings" {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-        }
-    }
-
-    nonisolated func userNotificationCenter(_ center: NSUserNotificationCenter, shouldPresent notification: NSUserNotification) -> Bool {
-        // Always show notifications even if app is in foreground
-        return true
     }
 }
