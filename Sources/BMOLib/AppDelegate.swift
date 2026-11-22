@@ -86,9 +86,13 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         popover = NSPopover()
         popover.contentSize = NSSize(width: 360, height: 400)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
+        let hostingController = NSHostingController(
             rootView: TranslatorView(viewModel: translatorViewModel)
         )
+        // Let the popover follow the SwiftUI content's size, so it grows
+        // to fit a long translation instead of clipping it.
+        hostingController.sizingOptions = .preferredContentSize
+        popover.contentViewController = hostingController
 
         // Pin toggle (footer icon) flips this to .applicationDefined, which
         // disables NSPopover's automatic close-on-outside-click/resign-active

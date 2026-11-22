@@ -65,7 +65,10 @@ struct TranslatorView: View {
                 .transition(.move(edge: .trailing))
             }
         }
-        .frame(width: SigSpacing.popoverWidth, height: 400)
+        // Height comes from each child: History/Anki/Settings are a fixed
+        // 400pt, MainView grows with long translations. The hosting
+        // controller reports this as the popover's preferredContentSize.
+        .frame(width: SigSpacing.popoverWidth)
         .clipped()
     }
 }
@@ -108,7 +111,12 @@ private struct MainView: View {
             FooterRow(viewModel: viewModel)
         }
         .padding(SigSpacing.panelPadding)
-        .frame(width: SigSpacing.popoverWidth, height: 400)
+        // At least the classic 400pt; taller when the content's ideal
+        // height (mostly a long translation) needs more. fixedSize makes
+        // the hosting controller measure the ideal height, not 400.
+        .frame(width: SigSpacing.popoverWidth)
+        .frame(minHeight: 400)
+        .fixedSize(horizontal: false, vertical: true)
         .background(SigTheme.surface)
     }
 }
@@ -427,48 +435,71 @@ private struct FilledResult: View {
     // Observed so the bookmark flips as soon as the card list changes,
     // including from History or the floating window.
     @ObservedObject private var settings = AppSettings.shared
+    /// Measured height of the translated text; starts at one line.
+    @State private var textHeight: CGFloat = 20
+
+    /// Tallest the text area gets before scrolling: the screen's usable
+    /// height minus the rest of the popover (~370pt incl. the icon row) and
+    /// some margin, so the popover never runs off the bottom of the screen.
+    private static var maxTextHeight: CGFloat {
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+        return max(SigSpacing.resultMinHeight, screenHeight - 410)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top, spacing: 8) {
+            // Full width: the action icons live in the row underneath (like
+            // the input panel's toolbar), so text isn't squeezed by a column
+            // of mostly-empty space beside it.
+            // Grows with the text so the popover expands to show it all;
+            // only past maxTextHeight (screen-bound) does it scroll.
+            ScrollView(.vertical) {
                 Text(viewModel.translatedText)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(SigTheme.textPrimary)
                     .lineSpacing(4)
                     .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                HStack(spacing: 3) {
-                    SigIconButton(
-                        systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
-                        tint: viewModel.isSpeaking ? SigTheme.accent : SigTheme.textMuted,
-                        help: "Speak",
-                        action: viewModel.speakDanish
-                    )
-                    SigIconButton(
-                        systemName: viewModel.isCopied ? "checkmark" : "doc.on.doc",
-                        tint: viewModel.isCopied ? SigTheme.success : SigTheme.textMuted,
-                        help: "Copy",
-                        action: viewModel.copyTranslation
-                    )
-                    if let card = viewModel.ankiCandidate {
-                        let state = settings.ankiCards.markState(forDanish: card.danish)
-                        SigIconButton(
-                            systemName: state.systemName,
-                            tint: state.tint,
-                            help: state == .exported ? state.help : "\(state.help) (⌘D)",
-                            action: viewModel.toggleAnkiBookmark
-                        )
-                        .keyboardShortcut("d", modifiers: .command)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        textHeight = $0
                     }
-                }
             }
+            .frame(height: min(textHeight, Self.maxTextHeight))
             if viewModel.targetLanguage == .danish, let ipa = viewModel.danishIPA {
                 Text(ipa)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(SigTheme.textMuted)
             }
+            HStack(spacing: 3) {
+                Spacer()
+                SigIconButton(
+                    systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
+                    tint: viewModel.isSpeaking ? SigTheme.accent : SigTheme.textMuted,
+                    help: "Speak",
+                    action: viewModel.speakDanish
+                )
+                SigIconButton(
+                    systemName: viewModel.isCopied ? "checkmark" : "doc.on.doc",
+                    tint: viewModel.isCopied ? SigTheme.success : SigTheme.textMuted,
+                    help: "Copy",
+                    action: viewModel.copyTranslation
+                )
+                if let card = viewModel.ankiCandidate {
+                    let state = settings.ankiCards.markState(forDanish: card.danish)
+                    SigIconButton(
+                        systemName: state.systemName,
+                        tint: state.tint,
+                        help: state == .exported ? state.help : "\(state.help) (⌘D)",
+                        action: viewModel.toggleAnkiBookmark
+                    )
+                    .keyboardShortcut("d", modifiers: .command)
+                }
+            }
         }
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 6)
         .frame(maxWidth: .infinity, minHeight: SigSpacing.resultMinHeight, alignment: .topLeading)
         .background(SigTheme.resultBg)
         .clipShape(RoundedRectangle(cornerRadius: SigRadius.input))
