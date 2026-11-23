@@ -147,14 +147,18 @@ struct TranslationResultView: View {
         detectedSource: Language?,
         onCopy: @escaping () -> Void,
         onClose: @escaping () -> Void,
-        phoneticsService: PhoneticsService = PhoneticsService()
+        phoneticsService: PhoneticsService = PhoneticsService(),
+        danishWordClassService: DanishWordClassService = DanishWordClassService()
     ) {
         self.original = original
         self.translated = translated
         self.detectedSource = detectedSource
         self.onCopy = onCopy
         self.onClose = onClose
-        _viewModel = StateObject(wrappedValue: TranslationResultViewModel(phoneticsService: phoneticsService))
+        _viewModel = StateObject(wrappedValue: TranslationResultViewModel(
+            phoneticsService: phoneticsService,
+            danishWordClassService: danishWordClassService
+        ))
     }
 
     private var sourceLanguage: Language? { detectedSource }
@@ -173,8 +177,29 @@ struct TranslationResultView: View {
             translated: translated,
             from: source,
             to: target,
-            ipa: viewModel.danishIPA
+            ipa: viewModel.danishIPA,
+            danishWordClasses: viewModel.danishWordClasses
         )
+    }
+
+    /// English side's class, as in the popover; `original`/`translated` are
+    /// fixed for the window's lifetime, so computing it on render is cheap.
+    private var englishWordClass: WordClass? {
+        guard settings.showWordClass, let source = sourceLanguage, let target = targetLanguage else { return nil }
+        return WordClassTagger.wordClass(source: original, translated: translated, from: source, to: target)
+    }
+
+    /// Chip contents for the side in `language`: Danish from Wiktionary,
+    /// English from the on-device tagger. Nil language (non-DA/EN source) → none.
+    private func wordClasses(for language: Language?) -> [WordClass] {
+        // Checked on every render, so turning the setting off hides a
+        // Danish chip that has already loaded.
+        guard settings.showWordClass else { return [] }
+        switch language {
+        case .danish: return viewModel.danishWordClasses
+        case .english: return englishWordClass.map { [$0] } ?? []
+        case nil: return []
+        }
     }
 
     private var directionLabel: String? {
@@ -221,7 +246,14 @@ struct TranslationResultView: View {
             copyResetTask = nil
         }
         .task {
-            await viewModel.fetchDanishIPAIfNeeded(original: original, translated: translated, detectedSource: detectedSource)
+            // Both lookups at once; .task cancels them if the window closes.
+            async let ipa: Void = viewModel.fetchDanishIPAIfNeeded(
+                original: original, translated: translated, detectedSource: detectedSource
+            )
+            async let classes: Void = viewModel.fetchDanishWordClassesIfNeeded(
+                original: original, translated: translated, detectedSource: detectedSource
+            )
+            _ = await (ipa, classes)
         }
     }
 
@@ -274,6 +306,9 @@ struct TranslationResultView: View {
                     .font(.system(size: 10.5, design: .monospaced))
                     .foregroundColor(SigTheme.textMuted)
             }
+            if let sourceLanguage {
+                WordClassChip(classes: wordClasses(for: sourceLanguage), language: sourceLanguage)
+            }
         }
     }
 
@@ -324,6 +359,9 @@ struct TranslationResultView: View {
                     .font(.system(size: 10.5, design: .monospaced))
                     .foregroundColor(SigTheme.textMuted)
             }
+            if let targetLanguage {
+                WordClassChip(classes: wordClasses(for: targetLanguage), language: targetLanguage)
+            }
         }
         .padding(12)
         .background(SigTheme.resultBg)
@@ -355,13 +393,20 @@ class TranslationResultViewModel: ObservableObject {
     @Published var isSpeaking: Bool = false
     @Published var currentSpeakingText: String = ""
     @Published var danishIPA: String?
+    @Published var danishWordClasses: [WordClass] = []
 
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: TranslationSpeechDelegate?
     private let phoneticsService: PhoneticsService
 
-    init(phoneticsService: PhoneticsService = PhoneticsService()) {
+    private let danishWordClassService: DanishWordClassService
+
+    init(
+        phoneticsService: PhoneticsService = PhoneticsService(),
+        danishWordClassService: DanishWordClassService = DanishWordClassService()
+    ) {
         self.phoneticsService = phoneticsService
+        self.danishWordClassService = danishWordClassService
         speechDelegate = TranslationSpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
     }
@@ -381,6 +426,19 @@ class TranslationResultViewModel: ObservableObject {
         let result = try? await phoneticsService.ipa(for: danish, language: .danish)
         guard !Task.isCancelled else { return }
         danishIPA = result
+    }
+
+    /// Wiktionary word classes for the Danish side. Same lifetime/cancellation
+    /// story as `fetchDanishIPAIfNeeded`.
+    func fetchDanishWordClassesIfNeeded(original: String, translated: String, detectedSource: Language?) async {
+        guard AppSettings.shared.showWordClass, let detectedSource else { return }
+        let target: Language = detectedSource == .english ? .danish : .english
+        let danish = danishText(source: original, translated: translated, from: detectedSource, to: target)
+        guard let danish, !danish.isEmpty else { return }
+
+        let result = await danishWordClassService.wordClasses(for: danish)
+        guard !Task.isCancelled else { return }
+        danishWordClasses = result
     }
 
     /// Caller chooses the voice (the autoTranslate detection gives us the
@@ -441,7 +499,8 @@ final class TranslationSpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @u
         detectedSource: .danish,
         onCopy: {},
         onClose: {},
-        phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())
+        phoneticsService: PhoneticsService(runner: MockPhoneticsRunner()),
+        danishWordClassService: DanishWordClassService(lookup: MockDanishWordClassLookup())
     )
 }
 
@@ -452,6 +511,7 @@ final class TranslationSpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @u
         detectedSource: .english,
         onCopy: {},
         onClose: {},
-        phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())
+        phoneticsService: PhoneticsService(runner: MockPhoneticsRunner()),
+        danishWordClassService: DanishWordClassService(lookup: MockDanishWordClassLookup())
     )
 }

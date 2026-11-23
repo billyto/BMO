@@ -25,7 +25,8 @@ struct TranslatorView: View {
     init(translationService: TranslationService?) {
         self.viewModel = TranslatorViewModel(
             translationService: translationService,
-            phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())
+            phoneticsService: PhoneticsService(runner: MockPhoneticsRunner()),
+            danishWordClassService: DanishWordClassService(lookup: MockDanishWordClassLookup())
         )
     }
 
@@ -265,6 +266,8 @@ private struct InputPanel: View {
 
 private struct InputToolbar: View {
     @ObservedObject var viewModel: TranslatorViewModel
+    // Observed so the word-type chip reacts to the Settings toggle.
+    @ObservedObject private var settings = AppSettings.shared
 
     private var charLimit: Int { TranslatorViewModel.inputCharLimit }
 
@@ -279,6 +282,10 @@ private struct InputToolbar: View {
                     action: viewModel.speakInputDanish
                 )
             }
+            WordClassChip(
+                classes: viewModel.inputWordClasses,
+                language: viewModel.sourceLanguage
+            )
             Spacer()
             Text("\(viewModel.inputText.count)/\(charLimit)")
                 .font(.system(size: 10.5))
@@ -472,6 +479,11 @@ private struct FilledResult: View {
                     .foregroundColor(SigTheme.textMuted)
             }
             HStack(spacing: 3) {
+                // The icon row's free left side holds the word-class chip.
+                WordClassChip(
+                    classes: viewModel.wordClasses(for: viewModel.targetLanguage),
+                    language: viewModel.targetLanguage
+                )
                 Spacer()
                 SigIconButton(
                     systemName: viewModel.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2",
@@ -507,6 +519,30 @@ private struct FilledResult: View {
             RoundedRectangle(cornerRadius: SigRadius.input)
                 .stroke(SigTheme.resultBorder, lineWidth: 1.5)
         )
+    }
+}
+
+// MARK: - Word class chip
+
+/// Small capsule like "verb" or "adjective · verb"; shared with the
+/// floating window. Renders nothing when `classes` is empty.
+struct WordClassChip: View {
+    let classes: [WordClass]
+    let language: Language
+
+    var body: some View {
+        if !classes.isEmpty {
+            Text(classes.map(\.label).joined(separator: " · "))
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(SigTheme.textMuted)
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(SigTheme.chipBg))
+                .help(language == .danish
+                      ? "Danish word type: every type this word can be (from Wiktionary)"
+                      : "English word type, as used here")
+        }
     }
 }
 
@@ -676,6 +712,11 @@ class TranslatorViewModel: ObservableObject {
     /// Nil while unavailable/disabled/pending.
     @Published var danishIPA: String?
 
+    /// Every word class the Danish side can have, from Wiktionary (e.g.
+    /// tør → adjective, verb). Empty while pending/disabled, for phrases, or
+    /// when the word has no entry. Fetched once per translation, like IPA.
+    @Published var danishWordClasses: [WordClass] = []
+
     /// The source text the on-screen `translatedText` was produced from.
     /// Tracked separately from `inputText` because the user can keep editing
     /// the input after a translation lands, and a bookmarked card must pair
@@ -691,6 +732,8 @@ class TranslatorViewModel: ObservableObject {
     /// Shares `phoneticsService`, so #Preview's mock reaches it too.
     let ankiExporter: AnkiExportModel
     private var ipaTask: Task<Void, Never>?
+    private let danishWordClassService: DanishWordClassService
+    private var danishWordClassTask: Task<Void, Never>?
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var speechDelegate: SpeechDelegate?
     /// Wraps the 1s debounce sleep that schedules an auto-translate.
@@ -716,8 +759,45 @@ class TranslatorViewModel: ObservableObject {
             translated: translatedText,
             from: sourceLanguage,
             to: targetLanguage,
-            ipa: danishIPA
+            ipa: danishIPA,
+            danishWordClasses: danishWordClasses
         )
+    }
+
+    /// Word class of the English side of the translation on screen. Computed
+    /// rather than stored: the tagger is on-device and instant, and this way
+    /// it follows every path that changes the pair (translate, swap, restore,
+    /// clear) and the Settings toggle without extra bookkeeping.
+    var englishWordClass: WordClass? {
+        guard AppSettings.shared.showWordClass, !translatedText.isEmpty else { return nil }
+        return WordClassTagger.wordClass(
+            source: translationSource,
+            translated: translatedText,
+            from: sourceLanguage,
+            to: targetLanguage
+        )
+    }
+
+    /// The word-class chip for the side of the pair in `language`. Checks
+    /// the setting on every read (not just when the lookup starts), so
+    /// turning it off hides a Danish chip that has already loaded.
+    func wordClasses(for language: Language) -> [WordClass] {
+        guard AppSettings.shared.showWordClass else { return [] }
+        switch language {
+        case .danish: return danishWordClasses
+        case .english: return englishWordClass.map { [$0] } ?? []
+        }
+    }
+
+    /// The chip for the input box. The classes describe the text that was
+    /// translated, so once the input is edited away from it they'd label the
+    /// wrong word: hidden until the next translation. The result chip and
+    /// the bookmark keep using the translated pair.
+    var inputWordClasses: [WordClass] {
+        let input = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let translated = translationSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty, input == translated else { return [] }
+        return wordClasses(for: sourceLanguage)
     }
 
     func toggleAnkiBookmark() {
@@ -731,10 +811,19 @@ class TranslatorViewModel: ObservableObject {
         inputText = String(text.prefix(Self.inputCharLimit))
     }
 
-    init(translationService: TranslationService?, phoneticsService: PhoneticsService = PhoneticsService()) {
+    init(
+        translationService: TranslationService?,
+        phoneticsService: PhoneticsService = PhoneticsService(),
+        danishWordClassService: DanishWordClassService = DanishWordClassService()
+    ) {
         self.translationService = translationService
         self.phoneticsService = phoneticsService
-        self.ankiExporter = AnkiExportModel(phoneticsService: phoneticsService)
+        self.danishWordClassService = danishWordClassService
+        // Shares the Wiktionary service (and its cache) with the popover.
+        self.ankiExporter = AnkiExportModel(
+            phoneticsService: phoneticsService,
+            danishWordClassService: danishWordClassService
+        )
         speechDelegate = SpeechDelegate(viewModel: self)
         speechSynthesizer.delegate = speechDelegate
     }
@@ -744,6 +833,8 @@ class TranslatorViewModel: ObservableObject {
     /// only supports the DA/EN pair). No-op — clears to nil — when the
     /// feature is off or neither side resolves to non-empty Danish text.
     private func refreshDanishIPA(source: String, translated: String, from: Language, to: Language) {
+        // Same trigger points and Danish side as the IPA, so refreshed together.
+        refreshDanishWordClasses(source: source, translated: translated, from: from, to: to)
         ipaTask?.cancel()
         danishIPA = nil
 
@@ -756,6 +847,24 @@ class TranslatorViewModel: ObservableObject {
             let result = try? await self.phoneticsService.ipa(for: danish, language: .danish)
             guard !Task.isCancelled else { return }
             self.danishIPA = result
+        }
+    }
+
+    /// Cancels any in-flight Wiktionary lookup and starts one for the Danish
+    /// side. Clears to empty when the setting is off or there's no Danish.
+    private func refreshDanishWordClasses(source: String, translated: String, from: Language, to: Language) {
+        danishWordClassTask?.cancel()
+        danishWordClasses = []
+
+        guard AppSettings.shared.showWordClass else { return }
+        guard let danish = danishText(source: source, translated: translated, from: from, to: to),
+              !danish.isEmpty else { return }
+
+        danishWordClassTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.danishWordClassService.wordClasses(for: danish)
+            guard !Task.isCancelled else { return }
+            self.danishWordClasses = result
         }
     }
 
@@ -838,6 +947,9 @@ class TranslatorViewModel: ObservableObject {
         ipaTask?.cancel()
         ipaTask = nil
         danishIPA = nil
+        danishWordClassTask?.cancel()
+        danishWordClassTask = nil
+        danishWordClasses = []
 
         inputText = ""
         translatedText = ""
@@ -901,6 +1013,8 @@ class TranslatorViewModel: ObservableObject {
         translatedText = ""
         ipaTask?.cancel()
         danishIPA = nil
+        danishWordClassTask?.cancel()
+        danishWordClasses = []
 
         // Snapshot the inputs so a mid-flight edit doesn't poison the request
         // (and so the recordTranslation call uses what was actually translated).

@@ -225,6 +225,29 @@ Bookmark translations from any surface, then export the pending ones as an Anki 
 - `ActiveView.anki` → `AnkiListView`, opened from the footer's `rectangle.stack` button (badge = pending count). Its `AnkiExportModel` is owned by `TranslatorViewModel.ankiExporter` and injected, so an in-progress export (and its `isExporting` guard) survives navigating Back; it shares the view model's `phoneticsService`, so #Preview stays on the mock
 - Settings → Anki section: deck name, include-IPA toggle (with the espeak-ng status row)
 
+## Word-Class Hint
+
+A small chip ("verb", "noun", "adjective"…) on each side of a short translation, so a learner sees what kind of word they got. The two sides can disagree (gerne → "would like to", tillykke → "congratulations"), so each is labelled from its own source.
+
+**WordClassTagger** (Sources/BMOLib/WordClass.swift)
+- Apple's on-device `NLTagger` `.lexicalClass` scheme: free, offline, instant, no dependency
+- NLTagger has no lexical-class model for Danish (every Danish word is `OtherWord`), so it always tags the **English** side of the pair; a word normally keeps its class across the translation
+- Only inputs of up to `maxWords` (3) words; determiners/particles are ignored so "to run" → verb and "the house" → noun; words that disagree ("big house") or sentences give no hint
+- No sentence context for a lone word, so ambiguous words get NLTagger's default reading ("run" → verb)
+
+**DanishWordClassService** (same file) — Danish side
+- English Wiktionary's REST endpoint `page/definition/<word>`, reading the `"da"` entries' `partOfSpeech`; behind the `DanishWordClassLookup` protocol (`MockDanishWordClassLookup` for #Preview, stubs in tests)
+- Lists every class the word *can* be (tør → adjective · verb): no sentence context. Single words only, plus "at X" (narrowed to verb) and "en/et X" (narrowed to noun)
+- Sends only that one Danish word, with a generic User-Agent and a 4s timeout. Session-only cache of successful answers; only HTTP 404 counts as "no entry" — any other failure (offline, timeout, 429, 5xx) throws, isn't cached, and the word is retried
+- `lookup(_:)` returns `LookupResult` (`.found`/`.notFound`/`.notApplicable`/`.failed`); `wordClasses(for:)` flattens it for the UI, where a missing chip is the only outcome. Wiktionary being down shows no alert in the popover — the Danish chip just doesn't appear
+- Export: `AnkiExportModel.fillDanishWordClasses(in:save:)` stops calling Wiktionary after the first `.failed` (so an outage costs one timeout, not one per card) and returns how many cards missed out; `notice` then shows an info line in `AnkiListView` ("…got the English word type instead…"). The export itself still succeeds and marks those cards exported too, so the notice points to "Export again" to retry them
+
+**Wiring**
+- `AppSettings.showWordClass`, default off (Settings → Grammar), gates both sides
+- `TranslatorViewModel.englishWordClass` is computed, not stored: it follows translate/swap/restore/clear and the toggle with no bookkeeping. `danishWordClasses` is fetched async alongside the IPA (`refreshDanishWordClasses`, triggered from `refreshDanishIPA`) and reset in `clear()`/`performTranslation()`
+- `wordClasses(for: Language)` picks the chip for a side and re-checks the setting on every read (so turning it off hides an already-loaded Danish chip); `inputWordClasses` hides the input chip once the input is edited away from `translationSource`. `WordClassChip` sits in `InputToolbar` (source side) and on the left of `FilledResult`'s icon row (result side). The floating window does the same per row, fetching Danish via `fetchDanishWordClassesIfNeeded` in its `.task`
+- Anki: `AnkiCard.danishWordClasses` (optional, so older cards still decode; nil = not looked up yet, only non-empty answers stored) is saved at mark time when the surface already has it. With the setting on, `AnkiExportModel.exportPending()` looks up only cards without it (sequentially, sharing the popover's `DanishWordClassService` cache) and saves answers back via `AnkiCardList.setDanishWordClasses`, so each card hits Wiktionary at most once. `AnkiExporter.tags(for:includeWordClass:)` emits them as tags (`fraSig adjective verb`), falling back to the English side's class when there are none (phrase, no entry, failed lookup)
+
 ## User Notifications
 
 **Notifier** (Sources/BMOLib/Notifier.swift) — `@MainActor` singleton over `UNUserNotificationCenter` (replaces the deprecated `NSUserNotification`), used for hotkey/Services errors and the accessibility prompt

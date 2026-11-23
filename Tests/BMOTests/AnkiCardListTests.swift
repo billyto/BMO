@@ -130,4 +130,22 @@ final class AnkiCardListTests: XCTestCase {
         XCTAssertEqual(list.cards.first?.ipa, "hˈɑj")
         XCTAssertNil(list.cards.last?.ipa)
     }
+
+    func testSetDanishWordClassesSavesAnswer() {
+        let card = AnkiCard(danish: "tør", english: "dry", sourceLang: .danish)
+        var list = AnkiCardList(cards: [card])
+
+        list.setDanishWordClasses([.adjective, .verb], forCardID: card.id)
+
+        XCTAssertEqual(list.cards.first?.danishWordClasses, [.adjective, .verb])
+    }
+
+    func testSetDanishWordClassesIgnoresEmptySoItsRetried() {
+        let card = AnkiCard(danish: "tør", english: "dry", sourceLang: .danish)
+        var list = AnkiCardList(cards: [card])
+
+        list.setDanishWordClasses([], forCardID: card.id)
+
+        XCTAssertNil(list.cards.first?.danishWordClasses)
+    }
 }

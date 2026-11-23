@@ -130,6 +130,15 @@ struct SettingsView: View {
 
                     SectionDivider()
 
+                    SettingsSectionHeader(label: "Grammar")
+                    SettingsRow(
+                        title: "Show word type",
+                        subtitle: "Noun, verb, adjective… on short translations. Danish words are looked up on Wiktionary (online)",
+                        isOn: $settings.showWordClass
+                    )
+
+                    SectionDivider()
+
                     SettingsSectionHeader(label: "Anki")
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Deck")

@@ -99,6 +99,7 @@ class AppSettings: ObservableObject {
     private let historyEnabledKey = "historyEnabled"
     private let historyKey = "translationHistory"
     private let showIPAKey = "showIPA"
+    private let showWordClassKey = "showWordClass"
     private let ankiCardsKey = "ankiCards"
     private let ankiDeckNameKey = "ankiDeckName"
     private let ankiIncludeIPAKey = "ankiIncludeIPA"
@@ -159,6 +160,15 @@ class AppSettings: ObservableObject {
     @Published var showIPA: Bool {
         didSet {
             defaults.set(showIPA, forKey: showIPAKey)
+        }
+    }
+
+    /// Word-class hint (noun, verb…) on translations of up to
+    /// `WordClassTagger.maxWords` words; also added as an Anki tag on export.
+    /// Default off like the other post-v1.6 settings, so it's opt-in.
+    @Published var showWordClass: Bool {
+        didSet {
+            defaults.set(showWordClass, forKey: showWordClassKey)
         }
     }
 
@@ -226,6 +236,7 @@ class AppSettings: ObservableObject {
         self.autoTranslateEnabled = defaults.object(forKey: autoTranslateEnabledKey) as? Bool ?? false
         self.historyEnabled = defaults.object(forKey: historyEnabledKey) as? Bool ?? false
         self.showIPA = defaults.object(forKey: showIPAKey) as? Bool ?? false
+        self.showWordClass = defaults.object(forKey: showWordClassKey) as? Bool ?? false
 
         if let data = defaults.data(forKey: historyKey),
            let decoded = try? JSONDecoder().decode([HistoryItem].self, from: data) {
