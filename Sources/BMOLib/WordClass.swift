@@ -126,7 +126,8 @@ struct WiktionaryWordClassLookup: DanishWordClassLookup {
         var request = URLRequest(url: url)
         // Wikimedia asks API clients to identify themselves; generic on purpose.
         request.setValue("Sig/1.0 (macOS translator)", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 8
+        // Short: it's a tiny response, and an export waits on this per card.
+        request.timeoutInterval = 4
 
         let (data, response) = try await session.data(for: request)
         // 404 = no entry for this word, not an error worth surfacing.
@@ -178,12 +179,30 @@ final class DanishWordClassService: Sendable {
         self.lookup = lookup
     }
 
-    /// Word classes for `danish`, or empty when it isn't a single word, has
-    /// no entry, or the lookup fails (offline, timeout).
+    enum LookupResult: Equatable {
+        case found([WordClass])
+        /// Wiktionary answered but has no Danish entry for the word.
+        case notFound
+        /// Not a single word (or "at"/"en"/"et" + word): nothing to look up.
+        case notApplicable
+        /// No answer: offline, timeout, server error, cancellation.
+        case failed
+    }
+
+    /// Word classes for `danish`, or empty for any reason — what the
+    /// popover and floating window need, where a missing chip is the only
+    /// sensible outcome either way.
     func wordClasses(for danish: String) async -> [WordClass] {
-        guard let query = Self.query(for: danish) else { return [] }
+        if case .found(let classes) = await lookup(danish) { return classes }
+        return []
+    }
+
+    /// Same lookup, telling a failure apart from "no entry" so the Anki export
+    /// can stop calling a Wiktionary that isn't answering, and say so.
+    func lookup(_ danish: String) async -> LookupResult {
+        guard let query = Self.query(for: danish) else { return .notApplicable }
         if let cached = await cache.value(for: query.word) {
-            return query.narrow(cached)
+            return Self.result(query.narrow(cached))
         }
         do {
             var classes = try await lookup.wordClasses(for: query.word)
@@ -194,10 +213,14 @@ final class DanishWordClassService: Sendable {
             // Only real answers are cached: a failure (offline, timeout,
             // cancellation) throws past this, so the word is retried later.
             await cache.set(classes, for: query.word)
-            return query.narrow(classes)
+            return Self.result(query.narrow(classes))
         } catch {
-            return []
+            return .failed
         }
+    }
+
+    private static func result(_ classes: [WordClass]) -> LookupResult {
+        classes.isEmpty ? .notFound : .found(classes)
     }
 
     struct Query: Equatable {

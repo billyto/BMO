@@ -238,7 +238,9 @@ A small chip ("verb", "noun", "adjective"…) on each side of a short translatio
 **DanishWordClassService** (same file) — Danish side
 - English Wiktionary's REST endpoint `page/definition/<word>`, reading the `"da"` entries' `partOfSpeech`; behind the `DanishWordClassLookup` protocol (`MockDanishWordClassLookup` for #Preview, stubs in tests)
 - Lists every class the word *can* be (tør → adjective · verb): no sentence context. Single words only, plus "at X" (narrowed to verb) and "en/et X" (narrowed to noun)
-- Sends only that one Danish word, with a generic User-Agent. Session-only cache of successful answers; failures (offline, timeout) aren't cached, so the word is retried
+- Sends only that one Danish word, with a generic User-Agent and a 4s timeout. Session-only cache of successful answers; failures (offline, timeout) aren't cached, so the word is retried
+- `lookup(_:)` returns `LookupResult` (`.found`/`.notFound`/`.notApplicable`/`.failed`); `wordClasses(for:)` flattens it for the UI, where a missing chip is the only outcome. Wiktionary being down shows no alert in the popover — the Danish chip just doesn't appear
+- Export: `AnkiExportModel.fillDanishWordClasses(in:save:)` stops calling Wiktionary after the first `.failed` (so an outage costs one timeout, not one per card) and returns how many cards missed out; `notice` then shows an info line in `AnkiListView` ("…got the English word type instead…"). The export itself still succeeds
 
 **Wiring**
 - `AppSettings.showWordClass`, default off (Settings → Grammar), gates both sides

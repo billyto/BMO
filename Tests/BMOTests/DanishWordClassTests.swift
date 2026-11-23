@@ -81,20 +81,90 @@ final class DanishWordClassTests: XCTestCase {
         XCTAssertEqual(offline, [])
         XCTAssertEqual(online, [.noun])
     }
+
+    // MARK: - Telling failures apart
+
+    func testLookupDistinguishesFailureFromNoEntry() async {
+        let service = DanishWordClassService(lookup: StubLookup(["hus": [.noun]]))
+        let found = await service.lookup("hus")
+        let missing = await service.lookup("xyzzy")
+        let phrase = await service.lookup("stort hus")
+        XCTAssertEqual(found, .found([.noun]))
+        XCTAssertEqual(missing, .notFound)
+        XCTAssertEqual(phrase, .notApplicable)
+
+        let down = DanishWordClassService(lookup: StubLookup([:], failAll: true))
+        let failed = await down.lookup("hus")
+        XCTAssertEqual(failed, .failed)
+    }
+
+    // MARK: - Export when Wiktionary is down
+
+    @MainActor
+    func testExportStopsCallingWiktionaryAfterFirstFailure() async {
+        let lookup = StubLookup([:], failAll: true)
+        let exporter = AnkiExportModel(danishWordClassService: DanishWordClassService(lookup: lookup))
+        var cards = ["tør", "hus", "Jeg løber hver morgen", "at løbe"].map {
+            AnkiCard(danish: $0, english: "x", sourceLang: .danish)
+        }
+
+        let unavailable = await exporter.fillDanishWordClasses(in: &cards) { _, _ in
+            XCTFail("nothing should be saved when lookups fail")
+        }
+
+        let calls = await lookup.calls
+        XCTAssertEqual(calls, 1, "only the first card should wait on Wiktionary")
+        // tør (failed) + hus + at løbe (skipped); the sentence was never eligible.
+        XCTAssertEqual(unavailable, 3)
+        XCTAssertTrue(cards.allSatisfy { $0.danishWordClasses == nil })
+    }
+
+    @MainActor
+    func testExportSavesAnswersAndSkipsCardsThatHaveThem() async {
+        let lookup = StubLookup(["tør": [.adjective, .verb]])
+        let exporter = AnkiExportModel(danishWordClassService: DanishWordClassService(lookup: lookup))
+        var cards = [
+            AnkiCard(danish: "tør", english: "dry", sourceLang: .danish),
+            AnkiCard(danish: "hus", english: "house", danishWordClasses: [.noun], sourceLang: .danish),
+        ]
+        var saved: [UUID: [WordClass]] = [:]
+
+        let unavailable = await exporter.fillDanishWordClasses(in: &cards) { saved[$1] = $0 }
+
+        let calls = await lookup.calls
+        XCTAssertEqual(calls, 1, "hus already had classes saved")
+        XCTAssertEqual(unavailable, 0)
+        XCTAssertEqual(cards[0].danishWordClasses, [.adjective, .verb])
+        XCTAssertEqual(saved, [cards[0].id: [.adjective, .verb]])
+    }
+
+    @MainActor
+    func testUnavailableNotice() {
+        XCTAssertNil(AnkiExportModel.unavailableNotice(count: 0))
+        XCTAssertEqual(
+            AnkiExportModel.unavailableNotice(count: 1),
+            "Wiktionary didn't respond, so 1 card got the English word type instead. "
+                + "The Danish types will be added on the next export."
+        )
+        XCTAssertTrue(AnkiExportModel.unavailableNotice(count: 3)?.contains("3 cards") == true)
+    }
 }
 
 private actor StubLookup: DanishWordClassLookup {
     private let answers: [String: [WordClass]]
     private var failNext: Bool
+    private let failAll: Bool
     private(set) var calls = 0
 
-    init(_ answers: [String: [WordClass]], failFirst: Bool = false) {
+    init(_ answers: [String: [WordClass]], failFirst: Bool = false, failAll: Bool = false) {
         self.answers = answers
         self.failNext = failFirst
+        self.failAll = failAll
     }
 
     func wordClasses(for word: String) async throws -> [WordClass] {
         calls += 1
+        if failAll { throw URLError(.timedOut) }
         if failNext {
             failNext = false
             throw URLError(.notConnectedToInternet)

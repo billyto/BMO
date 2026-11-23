@@ -59,6 +59,13 @@ struct AnkiListView: View {
                     .foregroundColor(SigTheme.errorText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 8)
+            } else if let notice = exporter.notice {
+                // The export worked; this only explains the fallback tags.
+                Label(notice, systemImage: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundColor(SigTheme.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
             }
 
             ExportButton(

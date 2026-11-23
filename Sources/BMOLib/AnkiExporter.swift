@@ -133,6 +133,10 @@ enum AnkiExporter {
 final class AnkiExportModel: ObservableObject {
     @Published private(set) var isExporting = false
     @Published private(set) var errorMessage: String?
+    /// Set after an export in which some cards couldn't get their Danish
+    /// word types because Wiktionary didn't answer. Informational: the
+    /// export itself succeeded, and those cards are retried next time.
+    @Published private(set) var notice: String?
 
     private let phoneticsService: PhoneticsService
     private let danishWordClassService: DanishWordClassService
@@ -155,6 +159,7 @@ final class AnkiExportModel: ObservableObject {
 
         isExporting = true
         errorMessage = nil
+        notice = nil
         defer { isExporting = false }
 
         let includeIPA = settings.ankiIncludeIPA
@@ -168,15 +173,10 @@ final class AnkiExportModel: ObservableObject {
             }
         }
 
-        // Only cards without saved classes are looked up, and answers are
-        // saved back, so a card hits Wiktionary at most once ever. One request
-        // at a time to stay polite to Wikimedia; phrases skip the request.
+        var unavailable = 0
         if settings.showWordClass {
-            for index in cards.indices where cards[index].danishWordClasses == nil {
-                let classes = await danishWordClassService.wordClasses(for: cards[index].danish)
-                guard !classes.isEmpty else { continue }
-                cards[index].danishWordClasses = classes
-                settings.ankiCards.setDanishWordClasses(classes, forCardID: cards[index].id)
+            unavailable = await fillDanishWordClasses(in: &cards) { classes, id in
+                settings.ankiCards.setDanishWordClasses(classes, forCardID: id)
             }
         }
 
@@ -198,9 +198,53 @@ final class AnkiExportModel: ObservableObject {
             // Only after the write succeeds, so a failed export leaves the
             // cards pending for the next attempt.
             settings.ankiCards.markExported(ids: Set(cards.map(\.id)))
+            notice = Self.unavailableNotice(count: unavailable)
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } catch {
             errorMessage = "Couldn't save the export file: \(error.localizedDescription)"
         }
+    }
+
+    /// Looks up Danish word classes for cards that have none saved, saving
+    /// each answer through `save` so a card hits Wiktionary at most once ever.
+    /// One request at a time, to stay polite to Wikimedia.
+    ///
+    /// After the first failed lookup, the rest are skipped: if Wiktionary is
+    /// down or hanging, each attempt would cost a full timeout. Returns how
+    /// many cards that could have had Danish types didn't get them because of
+    /// that (they fall back to the English tag and are retried next export).
+    func fillDanishWordClasses(
+        in cards: inout [AnkiCard],
+        save: ([WordClass], UUID) -> Void
+    ) async -> Int {
+        var unavailable = 0
+        var wiktionaryDown = false
+        for index in cards.indices where cards[index].danishWordClasses == nil {
+            if wiktionaryDown {
+                // Phrases were never going to be looked up, so don't count them.
+                if DanishWordClassService.query(for: cards[index].danish) != nil {
+                    unavailable += 1
+                }
+                continue
+            }
+            switch await danishWordClassService.lookup(cards[index].danish) {
+            case .found(let classes):
+                cards[index].danishWordClasses = classes
+                save(classes, cards[index].id)
+            case .failed:
+                wiktionaryDown = true
+                unavailable += 1
+            case .notFound, .notApplicable:
+                break
+            }
+        }
+        return unavailable
+    }
+
+    static func unavailableNotice(count: Int) -> String? {
+        guard count > 0 else { return nil }
+        let cards = count == 1 ? "1 card" : "\(count) cards"
+        return "Wiktionary didn't respond, so \(cards) got the English word type instead. "
+            + "The Danish types will be added on the next export."
     }
 }
