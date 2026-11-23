@@ -6,6 +6,8 @@
 	<string>en</string>
 	<key>CFBundleExecutable</key>
 	<string>Sig</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.btobon.sig</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -15,11 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.10.2</string>
+	<string>1.11</string>
 	<key>CFBundleVersion</key>
-	<string>1.10.2</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
+	<string>1.11.0</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -31,6 +31,11 @@
 	<key>NSServices</key>
 	<array>
 		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Translate with BMO</string>
+			</dict>
 			<key>NSMessage</key>
 			<string>translateText</string>
 			<key>NSPortName</key>
@@ -40,11 +45,6 @@
 				<string>public.utf8-plain-text</string>
 				<string>NSStringPboardType</string>
 			</array>
-			<key>NSMenuItem</key>
-			<dict>
-				<key>default</key>
-				<string>Translate with BMO</string>
-			</dict>
 		</dict>
 	</array>
 </dict>
