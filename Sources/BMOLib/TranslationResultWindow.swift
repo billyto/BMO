@@ -192,6 +192,9 @@ struct TranslationResultView: View {
     /// Chip contents for the side in `language`: Danish from Wiktionary,
     /// English from the on-device tagger. Nil language (non-DA/EN source) → none.
     private func wordClasses(for language: Language?) -> [WordClass] {
+        // Checked on every render, so turning the setting off hides a
+        // Danish chip that has already loaded.
+        guard settings.showWordClass else { return [] }
         switch language {
         case .danish: return viewModel.danishWordClasses
         case .english: return englishWordClass.map { [$0] } ?? []

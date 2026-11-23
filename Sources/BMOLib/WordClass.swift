@@ -130,9 +130,17 @@ struct WiktionaryWordClassLookup: DanishWordClassLookup {
         request.timeoutInterval = 4
 
         let (data, response) = try await session.data(for: request)
-        // 404 = no entry for this word, not an error worth surfacing.
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { return [] }
-        return Self.parse(data)
+        switch (response as? HTTPURLResponse)?.statusCode {
+        case 200:
+            return Self.parse(data)
+        case 404:
+            // No entry for this word: a real answer, safe to cache.
+            return []
+        default:
+            // 429, 5xx…: Wiktionary didn't answer. Throwing (not returning
+            // empty) keeps it out of the cache and lets the export stop.
+            throw URLError(.badServerResponse)
+        }
     }
 
     /// Pulls the Danish ("da") entries' parts of speech out of the response,

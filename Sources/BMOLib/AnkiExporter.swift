@@ -135,7 +135,8 @@ final class AnkiExportModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     /// Set after an export in which some cards couldn't get their Danish
     /// word types because Wiktionary didn't answer. Informational: the
-    /// export itself succeeded, and those cards are retried next time.
+    /// export itself succeeded. Those cards are marked exported like the
+    /// rest, so they're only retried via "Export again".
     @Published private(set) var notice: String?
 
     private let phoneticsService: PhoneticsService
@@ -212,7 +213,7 @@ final class AnkiExportModel: ObservableObject {
     /// After the first failed lookup, the rest are skipped: if Wiktionary is
     /// down or hanging, each attempt would cost a full timeout. Returns how
     /// many cards that could have had Danish types didn't get them because of
-    /// that (they fall back to the English tag and are retried next export).
+    /// that (they fall back to the English tag; "Export again" retries them).
     func fillDanishWordClasses(
         in cards: inout [AnkiCard],
         save: ([WordClass], UUID) -> Void
@@ -245,6 +246,6 @@ final class AnkiExportModel: ObservableObject {
         guard count > 0 else { return nil }
         let cards = count == 1 ? "1 card" : "\(count) cards"
         return "Wiktionary didn't respond, so \(cards) got the English word type instead. "
-            + "The Danish types will be added on the next export."
+            + "To try adding the Danish types, use Export again on those cards and re-import the file."
     }
 }

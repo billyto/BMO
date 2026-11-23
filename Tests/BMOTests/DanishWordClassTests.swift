@@ -144,7 +144,7 @@ final class DanishWordClassTests: XCTestCase {
         XCTAssertEqual(
             AnkiExportModel.unavailableNotice(count: 1),
             "Wiktionary didn't respond, so 1 card got the English word type instead. "
-                + "The Danish types will be added on the next export."
+                + "To try adding the Danish types, use Export again on those cards and re-import the file."
         )
         XCTAssertTrue(AnkiExportModel.unavailableNotice(count: 3)?.contains("3 cards") == true)
     }

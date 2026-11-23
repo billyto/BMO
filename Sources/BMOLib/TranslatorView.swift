@@ -266,6 +266,8 @@ private struct InputPanel: View {
 
 private struct InputToolbar: View {
     @ObservedObject var viewModel: TranslatorViewModel
+    // Observed so the word-type chip reacts to the Settings toggle.
+    @ObservedObject private var settings = AppSettings.shared
 
     private var charLimit: Int { TranslatorViewModel.inputCharLimit }
 
@@ -281,7 +283,7 @@ private struct InputToolbar: View {
                 )
             }
             WordClassChip(
-                classes: viewModel.wordClasses(for: viewModel.sourceLanguage),
+                classes: viewModel.inputWordClasses,
                 language: viewModel.sourceLanguage
             )
             Spacer()
@@ -776,12 +778,26 @@ class TranslatorViewModel: ObservableObject {
         )
     }
 
-    /// The word-class chip for the side of the pair in `language`.
+    /// The word-class chip for the side of the pair in `language`. Checks
+    /// the setting on every read (not just when the lookup starts), so
+    /// turning it off hides a Danish chip that has already loaded.
     func wordClasses(for language: Language) -> [WordClass] {
+        guard AppSettings.shared.showWordClass else { return [] }
         switch language {
         case .danish: return danishWordClasses
         case .english: return englishWordClass.map { [$0] } ?? []
         }
+    }
+
+    /// The chip for the input box. The classes describe the text that was
+    /// translated, so once the input is edited away from it they'd label the
+    /// wrong word: hidden until the next translation. The result chip and
+    /// the bookmark keep using the translated pair.
+    var inputWordClasses: [WordClass] {
+        let input = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let translated = translationSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty, input == translated else { return [] }
+        return wordClasses(for: sourceLanguage)
     }
 
     func toggleAnkiBookmark() {
