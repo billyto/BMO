@@ -13,6 +13,12 @@ struct AnkiCard: Codable, Identifiable, Equatable {
     /// Saved at mark time when the surface already has it; otherwise filled in
     /// at export time (cards marked from History never have one).
     var ipa: String?
+    /// Every class the Danish word can be, from Wiktionary. Saved at mark time
+    /// when the surface already has it, otherwise filled in (and saved) at
+    /// export time, so each card hits Wiktionary at most once. Only non-empty
+    /// answers are stored: nil means "not looked up yet". Optional, so cards
+    /// saved before this field existed still decode.
+    var danishWordClasses: [WordClass]?
     /// The language the user translated from. Context only — doesn't affect
     /// the card layout.
     let sourceLang: Language
@@ -30,6 +36,7 @@ struct AnkiCard: Codable, Identifiable, Equatable {
         danish: String,
         english: String,
         ipa: String? = nil,
+        danishWordClasses: [WordClass]? = nil,
         sourceLang: Language,
         createdAt: Date = Date(),
         exportedAt: Date? = nil
@@ -38,6 +45,7 @@ struct AnkiCard: Codable, Identifiable, Equatable {
         self.danish = danish
         self.english = english
         self.ipa = ipa
+        self.danishWordClasses = danishWordClasses?.isEmpty == true ? nil : danishWordClasses
         self.sourceLang = sourceLang
         self.createdAt = createdAt
         self.exportedAt = exportedAt
@@ -52,6 +60,7 @@ struct AnkiCard: Codable, Identifiable, Equatable {
         from: Language,
         to: Language,
         ipa: String? = nil,
+        danishWordClasses: [WordClass]? = nil,
         createdAt: Date = Date()
     ) {
         guard let danish = danishText(source: source, translated: translated, from: from, to: to) else {
@@ -66,6 +75,7 @@ struct AnkiCard: Codable, Identifiable, Equatable {
             danish: trimmedDanish,
             english: trimmedEnglish,
             ipa: ipa,
+            danishWordClasses: danishWordClasses,
             sourceLang: from,
             createdAt: createdAt
         )
@@ -149,5 +159,12 @@ struct AnkiCardList: Equatable {
     mutating func setIPA(_ ipa: String, forCardID id: UUID) {
         guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
         cards[index].ipa = ipa
+    }
+
+    /// Same, for Danish word classes looked up at export time. Empty is
+    /// ignored so the card is retried next export rather than marked "none".
+    mutating func setDanishWordClasses(_ classes: [WordClass], forCardID id: UUID) {
+        guard !classes.isEmpty, let index = cards.firstIndex(where: { $0.id == id }) else { return }
+        cards[index].danishWordClasses = classes
     }
 }

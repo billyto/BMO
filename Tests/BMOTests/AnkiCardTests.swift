@@ -58,4 +58,36 @@ final class AnkiCardTests: XCTestCase {
 
         XCTAssertEqual(decoded, [card])
     }
+
+    // MARK: - Danish word classes
+
+    func testCarriesDanishWordClassesFromTheSurface() throws {
+        let card = try XCTUnwrap(AnkiCard(
+            source: "tør", translated: "dry", from: .danish, to: .english,
+            danishWordClasses: [.adjective, .verb]
+        ))
+
+        XCTAssertEqual(card.danishWordClasses, [.adjective, .verb])
+    }
+
+    func testEmptyDanishWordClassesMeanNotLookedUp() throws {
+        let card = try XCTUnwrap(AnkiCard(
+            source: "hej", translated: "hi", from: .danish, to: .english,
+            danishWordClasses: []
+        ))
+
+        XCTAssertNil(card.danishWordClasses)
+    }
+
+    func testCardsSavedBeforeWordClassesStillDecode() throws {
+        // A v1.10 card as stored in UserDefaults, without danishWordClasses.
+        let json = """
+        [{"id": "6F1C3E1A-0B5E-4C33-9E4B-2D7C1A0F9A11", "danish": "Hej", "english": "Hello",
+          "sourceLang": "DA", "createdAt": 0}]
+        """
+        let decoded = try JSONDecoder().decode([AnkiCard].self, from: Data(json.utf8))
+
+        XCTAssertEqual(decoded.first?.danish, "Hej")
+        XCTAssertNil(decoded.first?.danishWordClasses)
+    }
 }

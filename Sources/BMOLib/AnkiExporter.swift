@@ -23,8 +23,10 @@ enum AnkiExporter {
 
     /// Columns: Front (Danish), Back (English + optional IPA), tags, GUID.
     /// The GUID column is what makes re-importing a card update the existing
-    /// note instead of adding a duplicate.
-    static func makeFile(cards: [AnkiCard], deck: String, includeIPA: Bool) -> String {
+    /// note instead of adding a duplicate. With `includeWordClass`, a short
+    /// card also gets its word classes ("verb", "noun"…) as extra tags —
+    /// see `tags(for:includeWordClass:)`.
+    static func makeFile(cards: [AnkiCard], deck: String, includeIPA: Bool, includeWordClass: Bool = false) -> String {
         var lines = [
             "#separator:tab",
             "#html:true",
@@ -37,7 +39,7 @@ enum AnkiExporter {
             let fields = [
                 escape(card.danish),
                 back(for: card, includeIPA: includeIPA),
-                tag,
+                tags(for: card, includeWordClass: includeWordClass),
                 card.id.uuidString,
             ]
             lines.append(fields.joined(separator: "\t"))
@@ -54,6 +56,19 @@ enum AnkiExporter {
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespaces)
         return flattened.isEmpty ? defaultDeckName : flattened
+    }
+
+    /// Space-separated, as Anki expects. Cards are Danish-front, so the
+    /// card's saved Danish classes (Wiktionary, every reading: "adjective
+    /// verb") win; the English side's class is the fallback when there are
+    /// none (a phrase, no entry, or the lookup failed).
+    static func tags(for card: AnkiCard, includeWordClass: Bool) -> String {
+        guard includeWordClass else { return tag }
+        let danishClasses = card.danishWordClasses ?? []
+        let classes = danishClasses.isEmpty
+            ? WordClassTagger.wordClass(english: card.english).map { [$0] } ?? []
+            : danishClasses
+        return ([tag] + classes.map(\.label)).joined(separator: " ")
     }
 
     static func back(for card: AnkiCard, includeIPA: Bool) -> String {
@@ -120,11 +135,16 @@ final class AnkiExportModel: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private let phoneticsService: PhoneticsService
+    private let danishWordClassService: DanishWordClassService
 
-    /// `phoneticsService` defaults to the real espeak-ng-backed one; #Preview
-    /// passes a mock so Xcode Canvas never shells out to a real subprocess.
-    init(phoneticsService: PhoneticsService = PhoneticsService()) {
+    /// Both services default to the real ones; #Preview passes mocks so
+    /// Xcode Canvas never shells out to a subprocess or hits Wiktionary.
+    init(
+        phoneticsService: PhoneticsService = PhoneticsService(),
+        danishWordClassService: DanishWordClassService = DanishWordClassService()
+    ) {
         self.phoneticsService = phoneticsService
+        self.danishWordClassService = danishWordClassService
     }
 
     func exportPending() async {
@@ -148,6 +168,18 @@ final class AnkiExportModel: ObservableObject {
             }
         }
 
+        // Only cards without saved classes are looked up, and answers are
+        // saved back, so a card hits Wiktionary at most once ever. One request
+        // at a time to stay polite to Wikimedia; phrases skip the request.
+        if settings.showWordClass {
+            for index in cards.indices where cards[index].danishWordClasses == nil {
+                let classes = await danishWordClassService.wordClasses(for: cards[index].danish)
+                guard !classes.isEmpty else { continue }
+                cards[index].danishWordClasses = classes
+                settings.ankiCards.setDanishWordClasses(classes, forCardID: cards[index].id)
+            }
+        }
+
         do {
             let downloads = try FileManager.default.url(
                 for: .downloadsDirectory,
@@ -156,7 +188,12 @@ final class AnkiExportModel: ObservableObject {
                 create: true
             )
             let url = AnkiExporter.uniqueFileURL(in: downloads, date: Date(), format: settings.ankiFileFormat)
-            let contents = AnkiExporter.makeFile(cards: cards, deck: settings.ankiDeckName, includeIPA: includeIPA)
+            let contents = AnkiExporter.makeFile(
+                cards: cards,
+                deck: settings.ankiDeckName,
+                includeIPA: includeIPA,
+                includeWordClass: settings.showWordClass
+            )
             try contents.write(to: url, atomically: true, encoding: .utf8)
             // Only after the write succeeds, so a failed export leaves the
             // cards pending for the next attempt.

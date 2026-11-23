@@ -212,5 +212,8 @@ extension AnkiCardList.MarkState {
 }
 
 #Preview {
-    AnkiListView(onBack: {}, exporter: AnkiExportModel(phoneticsService: PhoneticsService(runner: MockPhoneticsRunner())))
+    AnkiListView(onBack: {}, exporter: AnkiExportModel(
+        phoneticsService: PhoneticsService(runner: MockPhoneticsRunner()),
+        danishWordClassService: DanishWordClassService(lookup: MockDanishWordClassLookup())
+    ))
 }
