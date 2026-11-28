@@ -131,6 +131,25 @@ final class AnkiCardListTests: XCTestCase {
         XCTAssertNil(list.cards.last?.ipa)
     }
 
+    func testFillInsBumpUpdatedAt() {
+        let card = AnkiCard(danish: "tør", english: "dry", sourceLang: .danish)
+        var list = AnkiCardList(cards: [card])
+        XCTAssertNil(list.cards.first?.updatedAt)
+        XCTAssertEqual(list.cards.first?.lastModified, card.createdAt)
+
+        let ipaTime = Date(timeIntervalSince1970: 1_800_000_000)
+        list.setIPA("tœɐ̯ˀ", forCardID: card.id, at: ipaTime)
+        XCTAssertEqual(list.cards.first?.updatedAt, ipaTime)
+
+        let classTime = ipaTime.addingTimeInterval(60)
+        list.setDanishWordClasses([.adjective], forCardID: card.id, at: classTime)
+        XCTAssertEqual(list.cards.first?.lastModified, classTime)
+
+        // An empty answer isn't saved, so it isn't a change either.
+        list.setDanishWordClasses([], forCardID: card.id, at: classTime.addingTimeInterval(60))
+        XCTAssertEqual(list.cards.first?.updatedAt, classTime)
+    }
+
     func testSetDanishWordClassesSavesAnswer() {
         let card = AnkiCard(danish: "tør", english: "dry", sourceLang: .danish)
         var list = AnkiCardList(cards: [card])

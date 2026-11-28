@@ -211,6 +211,9 @@ final class AnkiExportModel: ObservableObject {
         defer { isExporting = false }
 
         let unavailable = await fillMissingDetails(in: &cards, settings: settings)
+        // Re-read the saved list rather than using the local copy: it has the
+        // `updatedAt` each fill-in got, and drops any card removed meanwhile.
+        cards = settings.ankiCards.cards
 
         do {
             let file = DankiExporter.makeFile(

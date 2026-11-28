@@ -89,5 +89,6 @@ final class AnkiCardTests: XCTestCase {
 
         XCTAssertEqual(decoded.first?.danish, "Hej")
         XCTAssertNil(decoded.first?.danishWordClasses)
+        XCTAssertNil(decoded.first?.updatedAt)
     }
 }

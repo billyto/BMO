@@ -258,8 +258,9 @@ A JSON snapshot of the bookmarked cards for the Danki iPhone app (repo `~/Develo
 - `card.id` = the Anki note GUID = Danki's card id, so the same card is linked across both apps
 - One deck, from `ankiDeckName`. Sig stores no deck id, so `deckID(for:)` is a UUIDv5 of the name under a fixed namespace (never change it). Renaming the deck gives Danki a new deck
 - `wordClasses` comes from `AnkiExporter.wordClasses(for:)`, the same rule as the Anki tags (saved Danish classes, else the English tagger's class)
-- `updatedAt` = `createdAt` (Sig doesn't track edits), and `deleted` is always false: removed cards aren't kept as tombstones, they're just missing from the next snapshot
-- `exportDirectory()`: `~/Library/Mobile Documents/com~apple~CloudDocs/Danki` when iCloud Drive exists (Sig isn't sandboxed), else Downloads
+- `updatedAt` = `AnkiCard.lastModified`: `AnkiCard.updatedAt` (optional, so older cards still decode) is bumped by `AnkiCardList.setIPA`/`setDanishWordClasses` when export fills in a detail, else `createdAt`. `exportForDanki()` re-reads the saved list after filling in, so the file gets those timestamps (and drops cards removed meanwhile)
+- `deleted` is always false: removed cards aren't kept as tombstones. The contract (`docs/card-format.md` → "Snapshots, updates and deletes") says a file is a full snapshot, so Danki treats a card missing from it as deleted
+- `exportDirectory()`: `~/Library/Mobile Documents/com~apple~CloudDocs/Danki` when iCloud Drive is signed in (`FileManager.ubiquityIdentityToken`, no entitlement needed) *and* that folder exists (Sig isn't sandboxed), else Downloads. The folder alone isn't enough: it outlives signing out, and a file there would never sync
 
 **Flow**: `AnkiExportModel.exportForDanki()` shares `isExporting`, `errorMessage`/`notice` and `fillMissingDetails(in:settings:)` (IPA + Danish word classes, saved back to the cards) with `exportPending()`. Triggered by `DankiExportButton` under the Anki export button in `AnkiListView`.
 

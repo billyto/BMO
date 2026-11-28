@@ -12,6 +12,7 @@ final class DankiExporterTests: XCTestCase {
         ipa: String? = nil,
         danishWordClasses: [WordClass]? = nil,
         sourceLang: Language = .english,
+        updatedAt: Date? = nil,
         exportedAt: Date? = nil
     ) -> AnkiCard {
         AnkiCard(
@@ -21,6 +22,7 @@ final class DankiExporterTests: XCTestCase {
             danishWordClasses: danishWordClasses,
             sourceLang: sourceLang,
             createdAt: createdAt,
+            updatedAt: updatedAt,
             exportedAt: exportedAt
         )
     }
@@ -115,6 +117,17 @@ final class DankiExporterTests: XCTestCase {
         XCTAssertEqual(row["deleted"] as? Bool, false)
     }
 
+    func testUpdatedAtFollowsLaterFillIns() throws {
+        let filledIn = Date(timeIntervalSince1970: 1_794_500_000)
+        let file = DankiExporter.makeFile(
+            cards: [card(updatedAt: filledIn)], deck: "Dansk::fraSig", appVersion: nil, exportedAt: exportedAt
+        )
+        let row = try XCTUnwrap((try json(file)["cards"] as? [[String: Any]])?.first)
+
+        XCTAssertEqual(row["createdAt"] as? String, "2026-11-06T21:20:00Z")
+        XCTAssertEqual(row["updatedAt"] as? String, "2026-11-12T16:13:20Z")
+    }
+
     func testMissingIPAIsOmitted() throws {
         let file = DankiExporter.makeFile(cards: [card()], deck: "Dansk::fraSig", appVersion: nil, exportedAt: exportedAt)
         let row = try XCTUnwrap((try json(file)["cards"] as? [[String: Any]])?.first)
@@ -164,7 +177,7 @@ final class DankiExporterTests: XCTestCase {
         try FileManager.default.createDirectory(at: iCloudDrive, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
 
-        let directory = try DankiExporter.exportDirectory(home: home)
+        let directory = try DankiExporter.exportDirectory(home: home, iCloudSignedIn: true)
 
         XCTAssertEqual(directory.standardizedFileURL, iCloudDrive.appendingPathComponent("Danki").standardizedFileURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
@@ -173,8 +186,21 @@ final class DankiExporterTests: XCTestCase {
     func testFallsBackToDownloadsWithoutICloudDrive() throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
 
-        let directory = try DankiExporter.exportDirectory(home: home)
+        let directory = try DankiExporter.exportDirectory(home: home, iCloudSignedIn: true)
 
         XCTAssertEqual(directory.lastPathComponent, "Downloads")
+    }
+
+    /// The folder outlives signing out of iCloud; a file there would never sync.
+    func testFallsBackToDownloadsWhenSignedOutDespiteLeftoverFolder() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let iCloudDrive = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+        try FileManager.default.createDirectory(at: iCloudDrive, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let directory = try DankiExporter.exportDirectory(home: home, iCloudSignedIn: false)
+
+        XCTAssertEqual(directory.lastPathComponent, "Downloads")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: iCloudDrive.appendingPathComponent("Danki").path))
     }
 }

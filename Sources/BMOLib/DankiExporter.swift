@@ -72,9 +72,9 @@ enum DankiExporter {
             tags: [AnkiExporter.tag],
             sourceLanguage: card.sourceLang.dankiCode,
             createdAt: card.createdAt,
-            // Sig doesn't track edits. Its only later change is IPA or word
-            // classes filled in at export time, so the creation date stands in.
-            updatedAt: card.createdAt,
+            // Bumped when IPA or word classes are filled in later, so Danki
+            // can tell the card changed since the last file.
+            updatedAt: card.lastModified,
             // Removed cards are gone from Sig, not kept as tombstones, so
             // every card in the file is live.
             deleted: false
@@ -124,10 +124,20 @@ enum DankiExporter {
     /// `~/Library/Mobile Documents/com~apple~CloudDocs/Danki` when iCloud Drive
     /// is on, so the phone can open the file from the Files app; otherwise
     /// Downloads. Sig isn't sandboxed, so it can write to iCloud Drive directly.
-    static func exportDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) throws -> URL {
+    ///
+    /// The folder alone isn't proof: it stays behind after signing out of
+    /// iCloud or turning iCloud Drive off, and a file written there then never
+    /// syncs. So the signed-in check (`ubiquityIdentityToken`, which needs no
+    /// entitlement) has to pass too.
+    static func exportDirectory(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        iCloudSignedIn: Bool = FileManager.default.ubiquityIdentityToken != nil
+    ) throws -> URL {
         let iCloudDrive = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
         var isDirectory: ObjCBool = false
-        if FileManager.default.fileExists(atPath: iCloudDrive.path, isDirectory: &isDirectory), isDirectory.boolValue {
+        if iCloudSignedIn,
+           FileManager.default.fileExists(atPath: iCloudDrive.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
             let folder = iCloudDrive.appendingPathComponent("Danki", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             return folder
