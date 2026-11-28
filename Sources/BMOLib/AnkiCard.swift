@@ -23,10 +23,17 @@ struct AnkiCard: Codable, Identifiable, Equatable {
     /// the card layout.
     let sourceLang: Language
     let createdAt: Date
+    /// Last time IPA or word classes were filled in after the card was made.
+    /// Nil when it hasn't changed since `createdAt`. Optional, so cards saved
+    /// before this field existed still decode. Danki uses it (via
+    /// `lastModified`) to tell an updated card from one it already has.
+    var updatedAt: Date?
     /// Nil while pending; set once the card has been written to an export file.
     var exportedAt: Date?
 
     var isExported: Bool { exportedAt != nil }
+
+    var lastModified: Date { updatedAt ?? createdAt }
 
     /// Duplicate-detection key — see `key(for:)`.
     var key: String { Self.key(for: danish) }
@@ -39,6 +46,7 @@ struct AnkiCard: Codable, Identifiable, Equatable {
         danishWordClasses: [WordClass]? = nil,
         sourceLang: Language,
         createdAt: Date = Date(),
+        updatedAt: Date? = nil,
         exportedAt: Date? = nil
     ) {
         self.id = id
@@ -48,6 +56,7 @@ struct AnkiCard: Codable, Identifiable, Equatable {
         self.danishWordClasses = danishWordClasses?.isEmpty == true ? nil : danishWordClasses
         self.sourceLang = sourceLang
         self.createdAt = createdAt
+        self.updatedAt = updatedAt
         self.exportedAt = exportedAt
     }
 
@@ -156,15 +165,18 @@ struct AnkiCardList: Equatable {
     }
 
     /// Used by export to save IPA looked up at export time back onto the card.
-    mutating func setIPA(_ ipa: String, forCardID id: UUID) {
+    /// Bumps the card's `updatedAt` to `date`, so Danki picks up the change.
+    mutating func setIPA(_ ipa: String, forCardID id: UUID, at date: Date = Date()) {
         guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
         cards[index].ipa = ipa
+        cards[index].updatedAt = date
     }
 
     /// Same, for Danish word classes looked up at export time. Empty is
     /// ignored so the card is retried next export rather than marked "none".
-    mutating func setDanishWordClasses(_ classes: [WordClass], forCardID id: UUID) {
+    mutating func setDanishWordClasses(_ classes: [WordClass], forCardID id: UUID, at date: Date = Date()) {
         guard !classes.isEmpty, let index = cards.firstIndex(where: { $0.id == id }) else { return }
         cards[index].danishWordClasses = classes
+        cards[index].updatedAt = date
     }
 }

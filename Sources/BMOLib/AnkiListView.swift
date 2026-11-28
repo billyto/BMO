@@ -80,6 +80,13 @@ struct AnkiListView: View {
                 .foregroundColor(SigTheme.textMuted)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 5)
+
+            DankiExportButton(
+                count: settings.ankiCards.cards.count,
+                isExporting: exporter.isExporting,
+                action: { Task { await exporter.exportForDanki() } }
+            )
+            .padding(.top, 6)
         }
         .padding(SigSpacing.panelPadding)
         .frame(width: SigSpacing.popoverWidth, height: 400)
@@ -189,6 +196,32 @@ private struct ExportButton: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .onHover { isHovered = $0 }
+    }
+}
+
+/// Secondary action: every card in the list, not just the new ones, goes to
+/// the Danki file (see `DankiExporter`).
+private struct DankiExportButton: View {
+    let count: Int
+    let isExporting: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    private var disabled: Bool { count == 0 || isExporting }
+
+    var body: some View {
+        Button(action: action) {
+            Label("Export all for Danki", systemImage: "iphone")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundColor(disabled ? SigTheme.buttonDisabledText
+                                 : (isHovered ? SigTheme.textPrimary : SigTheme.textMuted))
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .onHover { isHovered = $0 }
+        .help("Write all \(count) cards to \(DankiExporter.fileName) in iCloud Drive › Danki (or Downloads without iCloud Drive) for the Danki iPhone app")
     }
 }
 

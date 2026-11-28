@@ -248,6 +248,22 @@ A small chip ("verb", "noun", "adjective"…) on each side of a short translatio
 - `wordClasses(for: Language)` picks the chip for a side and re-checks the setting on every read (so turning it off hides an already-loaded Danish chip); `inputWordClasses` hides the input chip once the input is edited away from `translationSource`. `WordClassChip` sits in `InputToolbar` (source side) and on the left of `FilledResult`'s icon row (result side). The floating window does the same per row, fetching Danish via `fetchDanishWordClassesIfNeeded` in its `.task`
 - Anki: `AnkiCard.danishWordClasses` (optional, so older cards still decode; nil = not looked up yet, only non-empty answers stored) is saved at mark time when the surface already has it. With the setting on, `AnkiExportModel.exportPending()` looks up only cards without it (sequentially, sharing the popover's `DanishWordClassService` cache) and saves answers back via `AnkiCardList.setDanishWordClasses`, so each card hits Wiktionary at most once. `AnkiExporter.tags(for:includeWordClass:)` emits them as tags (`fraSig adjective verb`), falling back to the English side's class when there are none (phrase, no entry, failed lookup)
 
+## Danki Export
+
+A JSON snapshot of the bookmarked cards for the Danki iPhone app (repo `~/Developer/Danki`). **The format is a contract owned by Danki**: `schema/danki-export.schema.json`, `docs/card-format.md` and its `DankiCore` package. Change it there first, and bump `DankiExporter.schemaVersion` only together with Danki.
+
+**DankiExporter** (Sources/BMOLib/DankiExporter.swift)
+- `makeFile(cards:deck:appVersion:exportedAt:)` is pure and returns an `Encodable` `File` that mirrors DankiCore's types; `encode(_:)` uses the same encoder settings as `DankiExportCoder.encode` (ISO 8601, sorted keys)
+- Full snapshot: *every* card in `ankiCards`, pending or exported, in one fixed file (`Sig-Danki.json`) that's overwritten each time. It never touches `exportedAt`, which tracks Anki only
+- `card.id` = the Anki note GUID = Danki's card id, so the same card is linked across both apps
+- One deck, from `ankiDeckName`. Sig stores no deck id, so `deckID(for:)` is a UUIDv5 of the name under a fixed namespace (never change it). Renaming the deck gives Danki a new deck
+- `wordClasses` comes from `AnkiExporter.wordClasses(for:)`, the same rule as the Anki tags (saved Danish classes, else the English tagger's class)
+- `updatedAt` = `AnkiCard.lastModified`: `AnkiCard.updatedAt` (optional, so older cards still decode) is bumped by `AnkiCardList.setIPA`/`setDanishWordClasses` when export fills in a detail, else `createdAt`. `exportForDanki()` re-reads the saved list after filling in, so the file gets those timestamps (and drops cards removed meanwhile)
+- `deleted` is always false: removed cards aren't kept as tombstones. The contract (`docs/card-format.md` → "Snapshots, updates and deletes") says a file is a full snapshot, so Danki treats a card missing from it as deleted
+- `exportDirectory()`: `~/Library/Mobile Documents/com~apple~CloudDocs/Danki` when iCloud Drive is signed in (`FileManager.ubiquityIdentityToken`, no entitlement needed) *and* that folder exists (Sig isn't sandboxed), else Downloads. The folder alone isn't enough: it outlives signing out, and a file there would never sync
+
+**Flow**: `AnkiExportModel.exportForDanki()` shares `isExporting`, `errorMessage`/`notice` and `fillMissingDetails(in:settings:)` (IPA + Danish word classes, saved back to the cards) with `exportPending()`. Triggered by `DankiExportButton` under the Anki export button in `AnkiListView`.
+
 ## User Notifications
 
 **Notifier** (Sources/BMOLib/Notifier.swift) — `@MainActor` singleton over `UNUserNotificationCenter` (replaces the deprecated `NSUserNotification`), used for hotkey/Services errors and the accessibility prompt
