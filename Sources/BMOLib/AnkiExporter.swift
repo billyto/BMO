@@ -64,11 +64,15 @@ enum AnkiExporter {
     /// none (a phrase, no entry, or the lookup failed).
     static func tags(for card: AnkiCard, includeWordClass: Bool) -> String {
         guard includeWordClass else { return tag }
+        return ([tag] + wordClasses(for: card).map(\.label)).joined(separator: " ")
+    }
+
+    /// The card's saved Danish classes, or the English side's class when
+    /// there are none. Shared with the Danki export.
+    static func wordClasses(for card: AnkiCard) -> [WordClass] {
         let danishClasses = card.danishWordClasses ?? []
-        let classes = danishClasses.isEmpty
-            ? WordClassTagger.wordClass(english: card.english).map { [$0] } ?? []
-            : danishClasses
-        return ([tag] + classes.map(\.label)).joined(separator: " ")
+        guard danishClasses.isEmpty else { return danishClasses }
+        return WordClassTagger.wordClass(english: card.english).map { [$0] } ?? []
     }
 
     static func back(for card: AnkiCard, includeIPA: Bool) -> String {
@@ -164,22 +168,7 @@ final class AnkiExportModel: ObservableObject {
         defer { isExporting = false }
 
         let includeIPA = settings.ankiIncludeIPA
-        if includeIPA && EspeakNG.isInstalled {
-            for index in cards.indices where cards[index].ipa == nil {
-                guard let ipa = try? await phoneticsService.ipa(for: cards[index].danish, language: .danish) else {
-                    continue
-                }
-                cards[index].ipa = ipa
-                settings.ankiCards.setIPA(ipa, forCardID: cards[index].id)
-            }
-        }
-
-        var unavailable = 0
-        if settings.showWordClass {
-            unavailable = await fillDanishWordClasses(in: &cards) { classes, id in
-                settings.ankiCards.setDanishWordClasses(classes, forCardID: id)
-            }
-        }
+        let unavailable = await fillMissingDetails(in: &cards, settings: settings)
 
         do {
             let downloads = try FileManager.default.url(
@@ -203,6 +192,60 @@ final class AnkiExportModel: ObservableObject {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } catch {
             errorMessage = "Couldn't save the export file: \(error.localizedDescription)"
+        }
+    }
+
+    /// Exports every bookmarked card, pending or exported, as the Danki JSON
+    /// file (see `DankiExporter`), overwriting the previous one, and reveals
+    /// it in Finder. Fills in missing IPA and word classes the same way as
+    /// the Anki export. Leaves `exportedAt` alone: that tracks Anki only.
+    func exportForDanki() async {
+        guard !isExporting else { return }
+        let settings = AppSettings.shared
+        var cards = settings.ankiCards.cards
+        guard !cards.isEmpty else { return }
+
+        isExporting = true
+        errorMessage = nil
+        notice = nil
+        defer { isExporting = false }
+
+        let unavailable = await fillMissingDetails(in: &cards, settings: settings)
+
+        do {
+            let file = DankiExporter.makeFile(
+                cards: cards,
+                deck: settings.ankiDeckName,
+                appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                exportedAt: Date()
+            )
+            let url = try DankiExporter.exportDirectory().appendingPathComponent(DankiExporter.fileName)
+            try DankiExporter.encode(file).write(to: url, options: .atomic)
+            notice = Self.unavailableNotice(count: unavailable, retry: "export for Danki again")
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            errorMessage = "Couldn't save the Danki file: \(error.localizedDescription)"
+        }
+    }
+
+    /// Fills in missing IPA (when the setting is on and espeak-ng is
+    /// installed) and Danish word classes (when word types are on), saving
+    /// each answer back to the card. Returns how many cards missed their
+    /// Danish word types because Wiktionary didn't answer.
+    private func fillMissingDetails(in cards: inout [AnkiCard], settings: AppSettings) async -> Int {
+        if settings.ankiIncludeIPA && EspeakNG.isInstalled {
+            for index in cards.indices where cards[index].ipa == nil {
+                guard let ipa = try? await phoneticsService.ipa(for: cards[index].danish, language: .danish) else {
+                    continue
+                }
+                cards[index].ipa = ipa
+                settings.ankiCards.setIPA(ipa, forCardID: cards[index].id)
+            }
+        }
+
+        guard settings.showWordClass else { return 0 }
+        return await fillDanishWordClasses(in: &cards) { classes, id in
+            settings.ankiCards.setDanishWordClasses(classes, forCardID: id)
         }
     }
 
@@ -242,10 +285,13 @@ final class AnkiExportModel: ObservableObject {
         return unavailable
     }
 
-    static func unavailableNotice(count: Int) -> String? {
+    static func unavailableNotice(
+        count: Int,
+        retry: String = "use Export again on those cards and re-import the file"
+    ) -> String? {
         guard count > 0 else { return nil }
         let cards = count == 1 ? "1 card" : "\(count) cards"
         return "Wiktionary didn't respond, so \(cards) got the English word type instead. "
-            + "To try adding the Danish types, use Export again on those cards and re-import the file."
+            + "To try adding the Danish types, \(retry)."
     }
 }

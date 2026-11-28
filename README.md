@@ -133,6 +133,10 @@ Bookmark translations while you study, then export them as Anki flashcards in on
 - Bookmarks are kept separately from History, so they survive History being off or cleared
 - Exported cards stay in the list (dimmed) and aren't exported again unless you hover one and click **Export again** (↩) - the next export then updates that card in Anki instead of duplicating it. Use **Clear exported** to tidy the list - it doesn't touch Anki
 - Each card carries a stable ID, so re-importing it updates the existing note instead of adding a duplicate (with Anki's default import options)
+
+### Danki Export
+
+Danki is a companion iPhone app for reviewing the same cards. In the Anki list, click **Export all for Danki**. Sig writes every bookmarked card, exported to Anki or not, to `Sig-Danki.json` in **iCloud Drive › Danki** and replaces the previous file. Without iCloud Drive it writes to Downloads instead. Then open the file in Danki. The Danki export doesn't change which cards count as new for Anki.
 - Change the target deck in Settings → Anki (use `::` for subdecks)
 - Needs Anki 2.1.55 or later. If your Basic note type has a different name (Anki localizes it), pick it in the import dialog
 
